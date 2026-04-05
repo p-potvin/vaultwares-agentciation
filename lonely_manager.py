@@ -47,6 +47,7 @@ class LonelyManager(ExtrovertAgent):
     HEARTBEAT_CHECK_INTERVAL = 5  # seconds — checks every heartbeat cycle
     UPDATE_REQUEST_INTERVAL = 60  # seconds — requests updates every minute
     MAX_MISSED_HEARTBEATS = 5     # threshold before a LOST alert fires
+    ALERT_CHANNEL = "alerts"      # Redis channel for critical alerts
     REDIS_STATE_KEY = "lonely_manager:team_state"
 
     def __init__(
