@@ -1,10 +1,36 @@
+import importlib.util
 import threading
 import time
 import json
 import os
 import re
-from .base_agent import AgentBase
+from pathlib import Path as _Path
+from .agent_base import AgentBase
 from .enums import AgentStatus
+
+
+def _load_github_skills():
+    """Load GitHubSkills from skills/github_skills.py via path-based importlib.
+
+    Using path-based loading (rather than a relative package import) means this
+    works whether extrovert_agent.py is imported via the vaultwares_agentciation
+    shim OR as part of a regular Python package — no import-system magic needed.
+    Returns the GitHubSkills class, or None if the file is unavailable or fails
+    to load for any reason.
+    """
+    try:
+        path = _Path(__file__).parent / "skills" / "github_skills.py"
+        if not path.is_file():
+            return None
+        spec = importlib.util.spec_from_file_location("_vw_github_skills", path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod.GitHubSkills
+    except Exception:
+        return None
+
+
+_GitHubSkills = _load_github_skills()
 
 
 class ExtrovertAgent(AgentBase):
@@ -48,6 +74,9 @@ class ExtrovertAgent(AgentBase):
         self._missed_heartbeats: dict[str, int] = {}
         # Rolling action counter to trigger status updates every N actions
         self._action_counter = 0
+
+        # GitHub API skill set — available whenever GITHUB_TOKEN is in the environment
+        self.github = _GitHubSkills() if _GitHubSkills is not None else None
 
         # Background thread: broadcast status every minute
         self._status_thread = threading.Thread(
@@ -209,6 +238,38 @@ class ExtrovertAgent(AgentBase):
             print(f"✅ [{self.agent_id}] Task {task} complete.")
             self.update_status(AgentStatus.WAITING_FOR_INPUT)
 
+            # Publish task completion so peers (and LonelyManager) can react
+            self.coordinator.publish(
+                "TASK_COMPLETE",
+                task,
+                {
+                    "agent": self.agent_id,
+                    "task": task,
+                    "description": details.get("description", ""),
+                    "pr_branch": details.get("pr_branch"),
+                    "pr_title": details.get("pr_title"),
+                    "pr_body": details.get("pr_body"),
+                },
+            )
+
+            # If the caller supplied a branch, open a PR immediately
+            pr_branch = details.get("pr_branch")
+            if pr_branch:
+                pr_title = details.get(
+                    "pr_title",
+                    f"feat({self.agent_id}): completed task '{task}'",
+                )
+                pr_body = details.get(
+                    "pr_body",
+                    (
+                        f"Automated PR from **{self.agent_id}** after completing "
+                        f"task `{task}`.\n\n{details.get('description', '')}"
+                    ),
+                )
+                result = self.create_pr(branch=pr_branch, title=pr_title, body=pr_body)
+                if result.get("html_url"):
+                    print(f"🔗 [{self.agent_id}] PR created: {result['html_url']}")
+
         threading.Thread(target=_execute, daemon=True).start()
 
     def _perform_task(self, task: str, details: dict):
@@ -279,6 +340,57 @@ class ExtrovertAgent(AgentBase):
         """Note the departure of a peer agent."""
         self._peer_registry.pop(agent_id, None)
         self._missed_heartbeats.pop(agent_id, None)
+
+    # ------------------------------------------------------------------
+    # GitHub Skills
+    # ------------------------------------------------------------------
+
+    def create_pr(
+        self,
+        branch: str,
+        title: str,
+        body: str = "",
+        base: str | None = None,
+        **kwargs,
+    ) -> dict:
+        """
+        Create a GitHub pull request from *branch* to surface completed work
+        for human review.
+
+        Requires ``GITHUB_TOKEN`` (and optionally ``GITHUB_REPOSITORY``) in the
+        environment. Returns an empty dict when no token is available so callers
+        do not need to guard every call site.
+
+        Pass ``owner`` or ``repo`` as keyword arguments to override the
+        repository resolved from the environment.
+        """
+        if self.github is None:
+            return {}
+        return self.github.create_pr(branch=branch, title=title, body=body, base=base, **kwargs)
+
+    def dispatch_task_via_github(
+        self,
+        target_agent: str,
+        task: str,
+        description: str = "",
+        **extra,
+    ) -> dict:
+        """
+        Fire a GitHub ``repository_dispatch`` event with type ``task_dispatch``
+        to route a task to another agent via the GitHub API.
+
+        This is complementary to the Redis-based ``assign_task`` mechanism —
+        use it when you need cross-repo routing or CI-aware consumers to react.
+        Requires ``GITHUB_TOKEN`` in the environment.
+        """
+        if self.github is None:
+            return {}
+        return self.github.dispatch_task(
+            target_agent=target_agent,
+            task=task,
+            description=description,
+            **extra,
+        )
 
     # ------------------------------------------------------------------
     # Socialization Routine

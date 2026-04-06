@@ -204,9 +204,15 @@ class LonelyManager(ExtrovertAgent):
 
     def assign_task(self, target_agent_id: str, task: str, description: str = "", **extra):
         """
-        Dispatch a task to a specific agent by publishing an ASSIGN action
-        to the shared Redis channel. The target agent receives it via its
-        _on_message_received handler and executes it asynchronously.
+        Dispatch a task to a specific agent.
+
+        Publishes an ASSIGN action to the shared Redis channel so the target
+        agent receives it via its ``_on_message_received`` handler and executes
+        it asynchronously.
+
+        Also fires a GitHub ``repository_dispatch`` event (``task_dispatch``)
+        when ``GITHUB_TOKEN`` is available, so CI-aware or cross-repo consumers
+        can react without subscribing to the Redis stream.
 
         Args:
             target_agent_id: The agent_id of the receiving agent.
@@ -226,6 +232,50 @@ class LonelyManager(ExtrovertAgent):
             }),
         )
         print(f"📤 [{self.agent_id}] Assigned task '{task}' → {target_agent_id}")
+
+        # Mirror the dispatch via GitHub for cross-repo / CI-aware consumers
+        self.dispatch_task_via_github(
+            target_agent=target_agent_id,
+            task=task,
+            description=description,
+            **extra,
+        )
+
+    # ------------------------------------------------------------------
+    # GitHub Skills (Manager-level)
+    # ------------------------------------------------------------------
+
+    def create_pr_for_completion(
+        self,
+        agent_id: str,
+        task: str,
+        branch: str,
+        title: str | None = None,
+        body: str | None = None,
+    ) -> dict:
+        """
+        Open a pull request on behalf of an agent that just completed a task.
+
+        The manager calls this when it receives a ``TASK_COMPLETE`` message from
+        a worker agent that included a ``pr_branch`` in its task details.
+        Requires ``GITHUB_TOKEN`` in the environment.
+
+        Args:
+            agent_id: The worker agent that completed the task.
+            task: The task identifier that was completed.
+            branch: The head branch containing the agent's output.
+            title: Optional PR title. Defaults to a standard feat commit title.
+            body: Optional PR description. Defaults to a templated message.
+        """
+        resolved_title = title or f"feat({agent_id}): completed task '{task}'"
+        resolved_body = body or (
+            f"Automated PR opened by **{self.agent_id}** on behalf of "
+            f"**{agent_id}** after completing task `{task}`."
+        )
+        result = self.create_pr(branch=branch, title=resolved_title, body=resolved_body)
+        if result.get("html_url"):
+            print(f"🔗 [{self.agent_id}] PR for '{agent_id}/{task}': {result['html_url']}")
+        return result
 
     # ------------------------------------------------------------------
     # Heartbeat Monitoring
@@ -375,6 +425,19 @@ class LonelyManager(ExtrovertAgent):
                 "details": data.get("details", {}),
                 "timestamp": time.time(),
             }
+
+        elif action == "TASK_COMPLETE":
+            # A worker agent finished a task; open a PR if it provided a branch
+            details = data.get("details", {})
+            pr_branch = details.get("pr_branch")
+            if pr_branch:
+                self.create_pr_for_completion(
+                    agent_id=sender,
+                    task=data.get("task", "unknown"),
+                    branch=pr_branch,
+                    title=details.get("pr_title"),
+                    body=details.get("pr_body"),
+                )
 
     # ------------------------------------------------------------------
     # Reporting
