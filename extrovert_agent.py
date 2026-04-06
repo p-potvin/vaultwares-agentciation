@@ -1,4 +1,4 @@
-import importlib.util as _ilu
+import importlib.util
 import threading
 import time
 import json
@@ -15,14 +15,15 @@ def _load_github_skills():
     Using path-based loading (rather than a relative package import) means this
     works whether extrovert_agent.py is imported via the vaultwares_agentciation
     shim OR as part of a regular Python package — no import-system magic needed.
-    Returns the GitHubSkills class, or None if the file is missing.
+    Returns the GitHubSkills class, or None if the file is unavailable or fails
+    to load for any reason.
     """
     try:
         path = _Path(__file__).parent / "skills" / "github_skills.py"
         if not path.is_file():
             return None
-        spec = _ilu.spec_from_file_location("_vw_github_skills", path)
-        mod = _ilu.module_from_spec(spec)
+        spec = importlib.util.spec_from_file_location("_vw_github_skills", path)
+        mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
         return mod.GitHubSkills
     except Exception:

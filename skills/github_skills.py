@@ -206,6 +206,7 @@ class GitHubSkills:
         """Send a POST request to the GitHub REST API."""
         try:
             import urllib.request
+            import urllib.error
 
             data = json.dumps(payload).encode()
             req = urllib.request.Request(
@@ -217,6 +218,9 @@ class GitHubSkills:
             with urllib.request.urlopen(req) as resp:
                 body = resp.read()
                 return json.loads(body) if body else {}
-        except Exception as exc:  # noqa: BLE001
+        except (urllib.error.HTTPError, urllib.error.URLError) as exc:
             warnings.warn(f"GitHubSkills._post({path}): {exc}", stacklevel=3)
+            return {"error": str(exc)}
+        except json.JSONDecodeError as exc:
+            warnings.warn(f"GitHubSkills._post({path}): invalid JSON response: {exc}", stacklevel=3)
             return {"error": str(exc)}
