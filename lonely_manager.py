@@ -27,28 +27,19 @@ class LonelyManager(ExtrovertAgent):
       - Monitors every heartbeat on the network (checking every 5 seconds)
       - Triggers an immediate user alert when any agent misses 5 heartbeats
       - Requests a status update from all agents every 60 seconds
-      - Re-reads TODO.md and roadmap.md every cycle to stay anchored
+      - Re-reads TODO.md and ROADMAP.md every cycle to stay anchored
       - Sends realignment nudges to agents that have gone quiet or drifted
       - Stores all team state in Redis so other tools can inspect it
       - Publishes structured alerts to the Redis 'alerts' channel
-
-    Feasibility note on customization:
-      - Agent missing 5 heartbeats → alert triggered (fully implemented)
-      - Per-agent heartbeat tracking with timestamps → fully implemented
-      - Configurable alert callbacks (e.g., notify the user via a webhook,
-        a file, stdout, or any callable) → fully implemented via alert_callback
-      - Redis 'alerts' channel for structured alerts → fully implemented
-      - Acting as Redis state manager (writing agent state to Redis hashes
-        so any external tool can query the team's live status) → fully
-        implemented via _persist_team_state_to_redis()
-      - Roadmap/TODO alignment enforcement → fully implemented
     """
 
-    HEARTBEAT_CHECK_INTERVAL = 5  # seconds — checks every heartbeat cycle
-    UPDATE_REQUEST_INTERVAL = 60  # seconds — requests updates every minute
-    MAX_MISSED_HEARTBEATS = 5     # threshold before a LOST alert fires
-    ALERT_CHANNEL = "alerts"      # Redis channel for critical alerts
+    HEARTBEAT_CHECK_INTERVAL = 5   # seconds — checks every heartbeat cycle
+    UPDATE_REQUEST_INTERVAL = 60   # seconds — requests updates every minute
+    MAX_MISSED_HEARTBEATS = 5      # threshold before a LOST alert fires
+    ALERT_CHANNEL = "alerts"       # Redis channel for critical alerts
     REDIS_STATE_KEY = "lonely_manager:team_state"
+    REDIS_STATE_TTL = 300          # seconds before Redis state keys auto-expire
+    SILENCE_THRESHOLD = 120        # seconds of no update before realignment nudge
 
     def __init__(
         self,
@@ -59,13 +50,12 @@ class LonelyManager(ExtrovertAgent):
         redis_db: int = 0,
         alert_callback=None,
         todo_path: str = "TODO.md",
-        roadmap_path: str = "roadmap.md",
+        roadmap_path: str = "ROADMAP.md",
     ):
         super().__init__(agent_id, channel, redis_host, redis_port, redis_db)
 
         # User-defined callback invoked whenever a critical alert fires.
         # Signature: alert_callback(alert: dict) -> None
-        # This is how the Lonely Manager notifies the user when something goes wrong.
         self._alert_callback = alert_callback
 
         self._todo_path = todo_path
@@ -103,11 +93,7 @@ class LonelyManager(ExtrovertAgent):
         self._announce_as_manager()
 
     def _announce_as_manager(self):
-        """
-        Announce to the entire team that the Lonely Manager is now online
-        and watching over the project. Everyone should be aware that
-        alignment will be enforced.
-        """
+        """Announce to the entire team that the Lonely Manager is now online."""
         self.coordinator.publish(
             "MANAGER_ONLINE",
             "manager_announcement",
@@ -117,7 +103,7 @@ class LonelyManager(ExtrovertAgent):
                     "The Lonely Manager is now online. I'm here to make sure "
                     "we stay on track. I will check in with everyone every minute, "
                     "monitor your heartbeats every 5 seconds, and re-read our "
-                    "TODO.md and roadmap.md to keep us anchored. "
+                    "TODO.md and ROADMAP.md to keep us anchored. "
                     "Do not deviate from the objective."
                 ),
                 "todo_loaded": bool(self._todo_content.strip()),
@@ -133,7 +119,7 @@ class LonelyManager(ExtrovertAgent):
     # ------------------------------------------------------------------
 
     def _load_project_files(self):
-        """Load TODO.md and roadmap.md from disk. Called every update cycle."""
+        """Load TODO.md and ROADMAP.md from disk. Called every update cycle."""
         try:
             with open(self._todo_path, "r", encoding="utf-8") as f:
                 self._todo_content = f.read()
@@ -144,13 +130,12 @@ class LonelyManager(ExtrovertAgent):
             with open(self._roadmap_path, "r", encoding="utf-8") as f:
                 self._roadmap_content = f.read()
         except FileNotFoundError:
-            self._roadmap_content = "(roadmap.md not found)"
+            self._roadmap_content = "(ROADMAP.md not found)"
 
     def _re_evaluate_project(self):
         """
         Reload project files, persist team state to Redis, and notify the team
-        that alignment should be re-checked. This override adds the Redis
-        state persistence step that the base class does not perform.
+        that alignment should be re-checked.
         """
         self._load_project_files()
         self._persist_team_state_to_redis()
@@ -160,7 +145,7 @@ class LonelyManager(ExtrovertAgent):
             {
                 "manager": self.agent_id,
                 "note": (
-                    "Project files reloaded. Re-read TODO.md and roadmap.md. "
+                    "Project files reloaded. Re-read TODO.md and ROADMAP.md. "
                     "All agents must re-align to the current project scope now."
                 ),
                 "todo_preview": self._todo_content[:300],
@@ -175,14 +160,7 @@ class LonelyManager(ExtrovertAgent):
     def _persist_team_state_to_redis(self):
         """
         Write the full team state as a Redis hash so any external tool,
-        dashboard, or MCP client can query the live status of every agent
-        without subscribing to the pub/sub channel.
-
-        Keys written:
-          lonely_manager:team_state:<agent_id>  (Redis HSET fields)
-            - status
-            - last_heartbeat_epoch
-            - missed_heartbeats
+        dashboard, or MCP client can query the live status of every agent.
         """
         try:
             pipe = self.coordinator.r.pipeline()
@@ -193,13 +171,11 @@ class LonelyManager(ExtrovertAgent):
                     key,
                     mapping={
                         "status": info.get("status", "UNKNOWN"),
-                        "last_heartbeat_epoch": str(
-                            info.get("last_heartbeat", 0)
-                        ),
+                        "last_heartbeat_epoch": str(info.get("last_heartbeat", 0)),
                         "missed_heartbeats": str(missed),
                     },
                 )
-                pipe.expire(key, 300)  # Auto-expire after 5 minutes of no updates
+                pipe.expire(key, self.REDIS_STATE_TTL)
             pipe.execute()
         except Exception:
             pass  # Redis write failures must not crash the monitor
@@ -208,7 +184,6 @@ class LonelyManager(ExtrovertAgent):
         """
         Query Redis for the current stored state of all agents.
         Returns a dict: agent_id -> {status, last_heartbeat_epoch, missed_heartbeats}
-        Useful for external tools and dashboards.
         """
         snapshot = {}
         try:
@@ -224,15 +199,40 @@ class LonelyManager(ExtrovertAgent):
         return snapshot
 
     # ------------------------------------------------------------------
+    # Task Dispatching
+    # ------------------------------------------------------------------
+
+    def assign_task(self, target_agent_id: str, task: str, description: str = "", **extra):
+        """
+        Dispatch a task to a specific agent by publishing an ASSIGN action
+        to the shared Redis channel. The target agent receives it via its
+        _on_message_received handler and executes it asynchronously.
+
+        Args:
+            target_agent_id: The agent_id of the receiving agent.
+            task: A short task identifier (e.g. 'generate_caption').
+            description: Human-readable description of the work required.
+            **extra: Any additional key-value pairs passed in the details payload.
+        """
+        details = {"description": description, **extra}
+        self.coordinator.r.publish(
+            self.coordinator.channel,
+            json.dumps({
+                "agent": self.agent_id,
+                "action": "ASSIGN",
+                "task": task,
+                "target": target_agent_id,
+                "details": details,
+            }),
+        )
+        print(f"📤 [{self.agent_id}] Assigned task '{task}' → {target_agent_id}")
+
+    # ------------------------------------------------------------------
     # Heartbeat Monitoring
     # ------------------------------------------------------------------
 
     def _heartbeat_monitor_loop(self):
-        """
-        Check every 5 seconds whether any agent has missed its heartbeat.
-        This is the Lonely Manager's most critical duty — never let a
-        silent agent go unnoticed.
-        """
+        """Check every 5 seconds whether any agent has missed its heartbeat."""
         while not self._stop_event.is_set():
             time.sleep(self.HEARTBEAT_CHECK_INTERVAL)
             self._check_all_heartbeats()
@@ -248,10 +248,6 @@ class LonelyManager(ExtrovertAgent):
         for agent_id, info in list(self._peer_registry.items()):
             last_hb = info.get("last_heartbeat", now)
             seconds_since_hb = now - last_hb
-
-            # Each expected heartbeat is HEARTBEAT_INTERVAL seconds apart.
-            # If we haven't heard from the agent in more than that window,
-            # count it as a missed heartbeat.
             expected_missed = int(seconds_since_hb / self.HEARTBEAT_INTERVAL)
             self._missed_heartbeats[agent_id] = expected_missed
 
@@ -259,22 +255,9 @@ class LonelyManager(ExtrovertAgent):
                 self._fire_missed_heartbeat_alert(agent_id, expected_missed)
 
     def _fire_missed_heartbeat_alert(self, agent_id: str, missed_count: int):
-        """
-        Fire a structured alert when an agent has missed too many heartbeats.
-
-        The alert is:
-          1. Published to the Redis 'alerts' channel (for any subscriber)
-          2. Published to the main 'tasks' channel (for all agents to know)
-          3. Delivered to the user via the alert_callback if one was provided
-
-        The agent is immediately marked as LOST in the peer registry.
-        This method is intentionally idempotent for the same (agent, count)
-        — alerts escalate in severity as missed_count grows but only fire
-        at the initial threshold and then every subsequent check interval.
-        """
+        """Fire a structured alert when an agent has missed too many heartbeats."""
         if self._peer_registry.get(agent_id, {}).get("status") == AgentStatus.LOST.value:
-            # Already marked LOST — continue sending alerts while unresolved
-            pass
+            pass  # Already marked LOST — continue sending alerts while unresolved
 
         self._peer_registry[agent_id]["status"] = AgentStatus.LOST.value
 
@@ -293,18 +276,13 @@ class LonelyManager(ExtrovertAgent):
             ),
         }
 
-        # Publish to dedicated alerts channel
         try:
-            self.coordinator.r.publish(
-                self.ALERT_CHANNEL, json.dumps(alert)
-            )
+            self.coordinator.r.publish(self.ALERT_CHANNEL, json.dumps(alert))
         except Exception:
             pass
 
-        # Also publish to the main team channel so all agents are aware
         self.coordinator.publish("ALERT", "missed_heartbeat_alert", alert)
 
-        # Deliver to the user via the configured callback
         if self._alert_callback:
             try:
                 self._alert_callback(alert)
@@ -316,10 +294,7 @@ class LonelyManager(ExtrovertAgent):
     # ------------------------------------------------------------------
 
     def _update_request_loop(self):
-        """
-        Every 60 seconds: request a status update from all agents,
-        re-evaluate project files, check alignment, and persist state.
-        """
+        """Every 60 seconds: request updates, re-evaluate project, check alignment."""
         while not self._stop_event.is_set():
             time.sleep(self.UPDATE_REQUEST_INTERVAL)
             self._request_all_updates()
@@ -327,11 +302,7 @@ class LonelyManager(ExtrovertAgent):
             self._check_alignment()
 
     def _request_all_updates(self):
-        """
-        Ask every agent on the network to report their current status
-        and what they are working on. This is the Lonely Manager's
-        scheduled check-in — firm but caring.
-        """
+        """Ask every agent on the network to report their current status."""
         self.coordinator.publish(
             "REQUEST_UPDATE",
             "status_request",
@@ -355,7 +326,7 @@ class LonelyManager(ExtrovertAgent):
         Review all tracked agents and nudge any that have gone quiet
         for more than 2 minutes without sending an update.
         """
-        cutoff = time.time() - 120  # 2-minute silence threshold
+        cutoff = time.time() - self.SILENCE_THRESHOLD
         for agent_id, update in self._agent_updates.items():
             if (
                 self._peer_registry.get(agent_id, {}).get("status")
@@ -366,10 +337,7 @@ class LonelyManager(ExtrovertAgent):
                 self._send_realignment_nudge(agent_id)
 
     def _send_realignment_nudge(self, agent_id: str):
-        """
-        Send a targeted realignment message to an agent that has been
-        quiet or appears to be drifting from the project's objectives.
-        """
+        """Send a targeted realignment message to a quiet or drifting agent."""
         self.coordinator.publish(
             "REALIGN",
             "realignment_request",
@@ -378,7 +346,7 @@ class LonelyManager(ExtrovertAgent):
                 "to": agent_id,
                 "message": (
                     f"Hey {agent_id}, you haven't checked in recently. "
-                    "Please re-read TODO.md and roadmap.md right now. "
+                    "Please re-read TODO.md and ROADMAP.md right now. "
                     "Confirm your current task is aligned with the project objective. "
                     "The Lonely Manager is watching and the project cannot afford drift."
                 ),
@@ -392,10 +360,7 @@ class LonelyManager(ExtrovertAgent):
     # ------------------------------------------------------------------
 
     def _on_message_received(self, data: dict):
-        """
-        Extend the Extrovert's message handling to also collect updates
-        from all agents and respond to project-check requests from peers.
-        """
+        """Extend the Extrovert's message handling to collect agent updates."""
         super()._on_message_received(data)
 
         sender = data.get("agent")
@@ -404,7 +369,6 @@ class LonelyManager(ExtrovertAgent):
         if not sender or sender == self.agent_id:
             return
 
-        # Track the latest update from every agent
         if action in ("STATUS", "STATUS_UPDATE", "HEARTBEAT"):
             self._agent_updates[sender] = {
                 "action": action,
@@ -417,10 +381,7 @@ class LonelyManager(ExtrovertAgent):
     # ------------------------------------------------------------------
 
     def get_project_status_report(self) -> str:
-        """
-        Full project + team status report. This is the Lonely Manager's
-        signature output — always thorough, always honest.
-        """
+        """Full project + team status report."""
         lines = ["=== LONELY MANAGER — PROJECT STATUS REPORT ==="]
         lines.append(f"Manager : {self.agent_id}")
         lines.append(f"Status  : {self.status.value}")
@@ -461,8 +422,7 @@ class LonelyManager(ExtrovertAgent):
     def on_user_interaction(self) -> str:
         """
         On every user interaction, perform the full socialization routine
-        AND append the project status report. The Lonely Manager always
-        grounds the conversation in the project's current reality.
+        AND append the project status report.
         """
         social_report = super().on_user_interaction()
         project_report = self.get_project_status_report()

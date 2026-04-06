@@ -24,12 +24,14 @@ class RedisCoordinator:
     def listen(self, callback):
         def _listen():
             for message in self.pubsub.listen():
+                if not self.running:
+                    break
                 if message['type'] == 'message':
                     try:
                         data = json.loads(message['data'])
                         callback(data)
                     except Exception:
-                        pass
+                        pass  # Malformed messages are silently skipped
         self.running = True
         self.listener_thread = threading.Thread(target=_listen, daemon=True)
         self.listener_thread.start()
