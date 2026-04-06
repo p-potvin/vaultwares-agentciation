@@ -2,7 +2,7 @@
 from .enums import AgentStatus
 from .redis_coordinator import RedisCoordinator
 from .agent_base import AgentBase
-from .extrovert_agent import ExtrovertAgent
+from .extrovert_agent import ExtrovertAgent, _GitHubSkills as GitHubSkills
 from .lonely_manager import LonelyManager
 
 __all__ = [
@@ -11,4 +11,5 @@ __all__ = [
     "AgentBase",
     "ExtrovertAgent",
     "LonelyManager",
+    "GitHubSkills",
 ]
