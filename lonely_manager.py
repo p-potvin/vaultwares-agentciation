@@ -1,11 +1,13 @@
 import threading
 import time
 import json
-from .extrovert_agent import ExtrovertAgent
-from .enums import AgentStatus
+from manager_base import Manager
+from enums import AgentStatus
+from skills.spawn_agent_skill import spawn_subagent, remove_subagent
+from hook_registry import hooks
 
 
-class LonelyManager(ExtrovertAgent):
+class LonelyManager(Manager):
     """
     The Lonely Manager is the Extrovert who carries the heaviest burden.
 
@@ -57,7 +59,6 @@ class LonelyManager(ExtrovertAgent):
         # User-defined callback invoked whenever a critical alert fires.
         # Signature: alert_callback(alert: dict) -> None
         self._alert_callback = alert_callback
-
         self._todo_path = todo_path
         self._roadmap_path = roadmap_path
         self._todo_content: str = ""
@@ -80,6 +81,12 @@ class LonelyManager(ExtrovertAgent):
         )
 
         self._load_project_files()
+
+    async def spawn_subagent(self, agent_class, *args, **kwargs):
+        return await spawn_subagent(self, agent_class, *args, **kwargs)
+
+    async def remove_subagent(self, subagent_id):
+        return await remove_subagent(self, subagent_id)
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -162,23 +169,10 @@ class LonelyManager(ExtrovertAgent):
         Write the full team state as a Redis hash so any external tool,
         dashboard, or MCP client can query the live status of every agent.
         """
-        try:
-            pipe = self.coordinator.r.pipeline()
-            for aid, info in self._peer_registry.items():
-                key = f"{self.REDIS_STATE_KEY}:{aid}"
-                missed = self._missed_heartbeats.get(aid, 0)
-                pipe.hset(
-                    key,
-                    mapping={
-                        "status": info.get("status", "UNKNOWN"),
-                        "last_heartbeat_epoch": str(info.get("last_heartbeat", 0)),
-                        "missed_heartbeats": str(missed),
-                    },
-                )
-                pipe.expire(key, self.REDIS_STATE_TTL)
-            pipe.execute()
-        except Exception:
-            pass  # Redis write failures must not crash the monitor
+        hooks.trigger('pre_team_state_update', self)
+        state = self._gather_team_state()
+        self.coordinator.set_state(self.REDIS_STATE_KEY, json.dumps(state), ex=self.REDIS_STATE_TTL)
+        hooks.trigger('post_team_state_update', self, state=state)
 
     def get_redis_team_snapshot(self) -> dict:
         """
@@ -388,6 +382,7 @@ class LonelyManager(ExtrovertAgent):
 
     def _send_realignment_nudge(self, agent_id: str):
         """Send a targeted realignment message to a quiet or drifting agent."""
+        hooks.trigger('pre_nudge', self, agent_id=agent_id)
         self.coordinator.publish(
             "REALIGN",
             "realignment_request",
@@ -404,6 +399,7 @@ class LonelyManager(ExtrovertAgent):
                 "roadmap_preview": self._roadmap_content[:500],
             },
         )
+        hooks.trigger('post_nudge', self, agent_id=agent_id)
 
     # ------------------------------------------------------------------
     # Inbound Message Handling (override)

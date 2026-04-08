@@ -1,3 +1,4 @@
+from hook_registry import hooks
 import importlib.util
 import threading
 import time
@@ -5,8 +6,12 @@ import json
 import os
 import re
 from pathlib import Path as _Path
-from .agent_base import AgentBase
-from .enums import AgentStatus
+from agent_base import AgentBase
+from enums import AgentStatus
+from skills.redis_comm_skill import (
+    publish_status, send_heartbeat, broadcast_message, register_peer,
+    update_peer_status, handle_incoming_message
+)
 
 
 def _load_github_skills():
@@ -147,20 +152,8 @@ class ExtrovertAgent(AgentBase):
     # ------------------------------------------------------------------
 
     def _broadcast_status_update(self):
-        """Publish a full status update including awareness of all known peers."""
-        self.coordinator.publish(
-            "STATUS",
-            "status_update",
-            {
-                "agent": self.agent_id,
-                "status": self.status.value,
-                "peers_known": list(self._peer_registry.keys()),
-                "peer_statuses": {
-                    aid: info.get("status")
-                    for aid, info in self._peer_registry.items()
-                },
-            },
-        )
+        """Broadcast a status update to all peers."""
+        publish_status(self.coordinator, self.agent_id, self.status.value)
 
     def _re_evaluate_project(self):
         """
@@ -204,30 +197,18 @@ class ExtrovertAgent(AgentBase):
         meaningful — statuses are registered, arrivals are welcomed,
         and departures are noted with genuine concern.
         """
+        handle_incoming_message(data, self._peer_registry, self._missed_heartbeats)
         sender = data.get("agent")
         action = data.get("action")
         target = data.get("target")
-
-        # Process assignments even if sent by itself or to specifically this agent
         if action == "ASSIGN":
             if target == self.agent_id:
                 self._on_assignment_received(data.get("task"), data.get("details", {}))
             return
 
-        if not sender or sender == self.agent_id:
-            return  # Ignore own messages
-
-        if action == "HEARTBEAT":
-            self._register_peer_heartbeat(sender, data.get("details", {}))
-        elif action in ("STATUS", "STATUS_UPDATE"):
-            self._register_peer_status(sender, data.get("details", {}))
-        elif action == "JOIN":
-            self._on_peer_joined(sender, data.get("details", {}))
-        elif action == "LEAVE":
-            self._on_peer_left(sender)
-
     def _on_assignment_received(self, task: str, details: dict):
         """React to a task assignment from the manager or a peer."""
+        hooks.trigger('pre_assignment', self, task=task, details=details)
         print(f"\n📢 [{self.agent_id}] Assignment Received: {task}")
         print(f"📝 Details: {details.get('description', 'No description')}")
 
@@ -237,6 +218,7 @@ class ExtrovertAgent(AgentBase):
             self._update_tasks_md_finished(task)
             print(f"✅ [{self.agent_id}] Task {task} complete.")
             self.update_status(AgentStatus.WAITING_FOR_INPUT)
+            hooks.trigger('post_assignment', self, task=task, details=details)
 
             # Publish task completion so peers (and LonelyManager) can react
             self.coordinator.publish(
@@ -303,43 +285,7 @@ class ExtrovertAgent(AgentBase):
         except Exception as e:
             print(f"Error updating TODO.md: {e}")
 
-    def _register_peer_heartbeat(self, agent_id: str, details: dict):
-        """Record a heartbeat from a peer and reset its missed-heartbeat counter."""
-        if agent_id not in self._peer_registry:
-            self._peer_registry[agent_id] = {
-                "status": AgentStatus.WORKING.value,
-                "last_heartbeat": time.time(),
-            }
-        else:
-            self._peer_registry[agent_id]["last_heartbeat"] = time.time()
-
-        self._missed_heartbeats[agent_id] = 0  # Peer is alive — reset counter
-
-        if "status" in details:
-            self._peer_registry[agent_id]["status"] = details["status"]
-
-    def _register_peer_status(self, agent_id: str, details: dict):
-        """Record a status update from a peer."""
-        if agent_id not in self._peer_registry:
-            self._peer_registry[agent_id] = {
-                "status": AgentStatus.WORKING.value,
-                "last_heartbeat": time.time(),
-            }
-        if "status" in details:
-            self._peer_registry[agent_id]["status"] = details["status"]
-
-    def _on_peer_joined(self, agent_id: str, details: dict):
-        """Welcome a new agent to the team and register it in the peer registry."""
-        self._peer_registry[agent_id] = {
-            "status": details.get("status", AgentStatus.WAITING_FOR_INPUT.value),
-            "last_heartbeat": time.time(),
-        }
-        self._missed_heartbeats[agent_id] = 0
-
-    def _on_peer_left(self, agent_id: str):
-        """Note the departure of a peer agent."""
-        self._peer_registry.pop(agent_id, None)
-        self._missed_heartbeats.pop(agent_id, None)
+    # Peer registry and status management is now handled by redis_comm_skill
 
     # ------------------------------------------------------------------
     # GitHub Skills
@@ -423,8 +369,13 @@ class ExtrovertAgent(AgentBase):
         Also increments the action counter and sends an additional status
         update every ACTIONS_BEFORE_STATUS actions.
         """
+        hooks.trigger('pre_user_interaction', self)
         self._action_counter += 1
         if self._action_counter % self.ACTIONS_BEFORE_STATUS == 0:
+            hooks.trigger('user_interaction_status_update', self)
+        result = self.socialize()
+        hooks.trigger('post_user_interaction', self)
+        return result
             self._broadcast_status_update()
         return self.socialize()
 
