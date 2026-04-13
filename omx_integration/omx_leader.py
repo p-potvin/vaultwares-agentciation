@@ -59,8 +59,8 @@ class OMXLeader:
         self.coordinator = RedisCoordinator(
             agent_id=leader_id,
             channel="tasks",
-            redis_host=redis_host,
-            redis_port=redis_port,
+            host=redis_host,
+            port=redis_port,
         )
 
         # Task queue for claim-safe task management
@@ -90,14 +90,10 @@ class OMXLeader:
         hooks.trigger("pre_agent_start", self.leader_id)
         self.status = AgentStatus.WORKING
 
-        self.coordinator.publish({
-            "agent": self.leader_id,
-            "action": "JOIN",
-            "details": {
-                "team": self.team_name,
-                "role": "leader",
-                "status": self.status.value,
-            },
+        self.coordinator.publish("JOIN", "startup", {
+            "team": self.team_name,
+            "role": "leader",
+            "status": self.status.value,
         })
 
         # Start heartbeat thread
@@ -111,15 +107,10 @@ class OMXLeader:
 
     def _heartbeat_loop(self):
         while not self._stop_event.is_set():
-            self.coordinator.publish({
-                "agent": self.leader_id,
-                "action": "HEARTBEAT",
-                "details": {
-                    "status": self.status.value,
-                    "pipeline_stage": self.pipeline_stage,
-                    "team": self.team_name,
-                    "worker_count": len(self.workers),
-                },
+            self.coordinator.publish("HEARTBEAT", self.pipeline_stage, {
+                "status": self.status.value,
+                "team": self.team_name,
+                "worker_count": len(self.workers),
             })
             self._stop_event.wait(self.HEARTBEAT_INTERVAL)
 
@@ -181,15 +172,10 @@ class OMXLeader:
             claim_token = self.task_queue.claim_task(task_id, worker_id)
             if claim_token:
                 # Send assignment via Redis
-                self.coordinator.publish({
-                    "agent": self.leader_id,
-                    "action": "ASSIGN",
-                    "task": task_id,
+                self.coordinator.publish("ASSIGN", task_id, {
                     "target": worker_id,
-                    "details": {
-                        "claim_token": claim_token,
-                        "team": self.team_name,
-                    },
+                    "claim_token": claim_token,
+                    "team": self.team_name,
                 })
 
                 # Also via mailbox
@@ -283,11 +269,7 @@ class OMXLeader:
             )
 
         # Announce departure
-        self.coordinator.publish({
-            "agent": self.leader_id,
-            "action": "LEAVE",
-            "details": {"team": self.team_name},
-        })
+        self.coordinator.publish("LEAVE", "shutdown", {"team": self.team_name})
 
         self.coordinator.stop()
         hooks.trigger("post_agent_stop", self.leader_id)

@@ -64,8 +64,8 @@ class OMXWorker:
         self.coordinator = RedisCoordinator(
             agent_id=worker_id,
             channel="tasks",
-            redis_host=redis_host,
-            redis_port=redis_port,
+            host=redis_host,
+            port=redis_port,
         )
 
     def start(self):
@@ -74,14 +74,10 @@ class OMXWorker:
         self.status = AgentStatus.WAITING_FOR_INPUT
 
         # Announce presence
-        self.coordinator.publish({
-            "agent": self.worker_id,
-            "action": "JOIN",
-            "details": {
-                "team": self.team_name,
-                "role": self.role,
-                "status": self.status.value,
-            },
+        self.coordinator.publish("JOIN", "startup", {
+            "team": self.team_name,
+            "role": self.role,
+            "status": self.status.value,
         })
 
         # Start heartbeat thread
@@ -96,14 +92,9 @@ class OMXWorker:
     def _heartbeat_loop(self):
         """Send heartbeats every 5 seconds."""
         while not self._stop_event.is_set():
-            self.coordinator.publish({
-                "agent": self.worker_id,
-                "action": "HEARTBEAT",
-                "details": {
-                    "status": self.status.value,
-                    "task": self.current_task,
-                    "team": self.team_name,
-                },
+            self.coordinator.publish("HEARTBEAT", self.current_task or "", {
+                "status": self.status.value,
+                "team": self.team_name,
             })
             self._stop_event.wait(self.HEARTBEAT_INTERVAL)
 
@@ -163,15 +154,10 @@ class OMXWorker:
             print(f"[{self.worker_id}]   Git commit note: {e.stderr.strip()}")
 
         # Report completion
-        self.coordinator.publish({
-            "agent": self.worker_id,
-            "action": "TASK_COMPLETE",
-            "task": task_id,
-            "details": {
-                "subject": subject,
-                "files": created_files,
-                "team": self.team_name,
-            },
+        self.coordinator.publish("TASK_COMPLETE", task_id, {
+            "subject": subject,
+            "files": created_files,
+            "team": self.team_name,
         })
 
         hooks.trigger("post_assignment", self.worker_id, task_id)
@@ -185,11 +171,7 @@ class OMXWorker:
         hooks.trigger("pre_agent_stop", self.worker_id)
         self._stop_event.set()
 
-        self.coordinator.publish({
-            "agent": self.worker_id,
-            "action": "LEAVE",
-            "details": {"team": self.team_name},
-        })
+        self.coordinator.publish("LEAVE", "shutdown", {"team": self.team_name})
 
         self.coordinator.stop()
         hooks.trigger("post_agent_stop", self.worker_id)
