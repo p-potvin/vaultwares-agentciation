@@ -1,6 +1,9 @@
 import redis
 import threading
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 class RedisCoordinator:
     def __init__(self, agent_id, channel='tasks', host='localhost', port=6379, db=0):
@@ -30,8 +33,8 @@ class RedisCoordinator:
                     try:
                         data = json.loads(message['data'])
                         callback(data)
-                    except Exception:
-                        pass  # Malformed messages are silently skipped
+                    except (json.JSONDecodeError, TypeError) as exc:
+                        logger.warning("Skipping malformed Redis message: %s", exc)
         self.running = True
         self.listener_thread = threading.Thread(target=_listen, daemon=True)
         self.listener_thread.start()

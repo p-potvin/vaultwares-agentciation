@@ -1,10 +1,13 @@
 import threading
 import time
 import json
+import logging
 from manager_base import Manager
 from enums import AgentStatus
 from skills.spawn_agent_skill import spawn_subagent, remove_subagent
 from hook_registry import hooks
+
+logger = logging.getLogger(__name__)
 
 
 class LonelyManager(Manager):
@@ -188,8 +191,8 @@ class LonelyManager(Manager):
                 snapshot[agent_id] = {
                     k.decode(): v.decode() for k, v in data.items()
                 }
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to load Redis team snapshot: %s", exc)
         return snapshot
 
     # ------------------------------------------------------------------
@@ -322,8 +325,8 @@ class LonelyManager(Manager):
 
         try:
             self.coordinator.r.publish(self.ALERT_CHANNEL, json.dumps(alert))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to publish alert on '%s': %s", self.ALERT_CHANNEL, exc)
 
         self.coordinator.publish("ALERT", "missed_heartbeat_alert", alert)
 
@@ -331,7 +334,7 @@ class LonelyManager(Manager):
             try:
                 self._alert_callback(alert)
             except Exception:
-                pass
+                logger.exception("Alert callback failed")
 
     # ------------------------------------------------------------------
     # Update Request Loop

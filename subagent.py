@@ -6,7 +6,7 @@ async def listen_for_tasks(coordinator, agent_id):
     Async generator that listens for tasks for this agent via Redis pub/sub.
     Yields each task as it arrives for this agent.
     """
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     pubsub = coordinator.r.pubsub()
     # Listen on a dedicated channel for this agent, or fallback to the main channel
     agent_channel = f"tasks:{agent_id}"
@@ -22,13 +22,11 @@ async def listen_for_tasks(coordinator, agent_id):
                     # Only yield tasks meant for this agent or broadcast
                     if data.get('agent') in (agent_id, 'all', None):
                         yield data
-                except Exception:
+                except json.JSONDecodeError:
                     continue
             await asyncio.sleep(0.1)
     finally:
         pubsub.close()
-import asyncio
-import asyncio
 from agent_base import AgentBase
 from enums import AgentStatus
 from skills.print_skill import print_message

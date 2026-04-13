@@ -12,8 +12,7 @@ class Manager:
         self.agent_id = agent_id
         self.status = AgentStatus.WAITING_FOR_INPUT
         self.coordinator = RedisCoordinator(agent_id, channel, redis_host, redis_port, redis_db)
-        self.subagents = {}  # agent_id -> task/process
-        self.loop = asyncio.get_event_loop()
+        self.subagents = {}  # agent_id -> {"agent": AgentBase, "task": asyncio.Task}
         self._stop = False
 
     async def spawn_subagent(self, agent_class, *args, **kwargs):
@@ -23,8 +22,8 @@ class Manager:
         hooks.trigger('pre_subagent_spawn', self, agent_class=agent_class, args=args, kwargs=kwargs)
         subagent_id = f"subagent-{uuid.uuid4().hex[:8]}"
         agent = agent_class(subagent_id, *args, **kwargs)
-        task = self.loop.create_task(agent.run())
-        self.subagents[subagent_id] = task
+        task = asyncio.create_task(agent.run())
+        self.subagents[subagent_id] = {"agent": agent, "task": task}
         self.coordinator.publish('SPAWN', 'subagent_spawned', {'subagent_id': subagent_id})
         hooks.trigger('post_subagent_spawn', self, subagent_id=subagent_id, agent=agent)
         return subagent_id
@@ -34,9 +33,16 @@ class Manager:
         Cancel and remove a subagent by id.
         """
         hooks.trigger('pre_subagent_remove', self, subagent_id=subagent_id)
-        task = self.subagents.get(subagent_id)
-        if task:
+        entry = self.subagents.get(subagent_id)
+        if entry:
+            agent = entry["agent"]
+            task = entry["task"]
+            agent.stop()
             task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
             self.coordinator.publish('REMOVE', 'subagent_removed', {'subagent_id': subagent_id})
             del self.subagents[subagent_id]
         hooks.trigger('post_subagent_remove', self, subagent_id=subagent_id)

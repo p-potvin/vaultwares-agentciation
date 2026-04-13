@@ -1,11 +1,7 @@
 import asyncio
 import uuid
-import asyncio
-import uuid
-from agent_base import AgentBase
 from manager_base import Manager
 from subagent import SubAgent
-from skills.redis_comm_skill import publish_status
 
 class DemoManager(Manager):
     async def run(self):
@@ -19,11 +15,12 @@ class DemoManager(Manager):
         # Assign tasks
         tasks = [f"Task-{uuid.uuid4().hex[:4]}" for _ in range(4)]
         for i, task in enumerate(tasks):
-            target = list(self.subagents.values())[i % len(self.subagents)]
+            sub_id = subagent_ids[i % len(subagent_ids)]
+            target_agent = self.subagents[sub_id]["agent"]
             # Simulate sending a task (in real use, use Redis pub/sub)
-            print(f"[Manager] Assigning '{task}' to subagent {i % len(self.subagents)}")
+            print(f"[Manager] Assigning '{task}' to subagent {sub_id}")
             # Here, you would publish to Redis; for demo, just call directly
-            await target._coro.cr_frame.f_locals['self'].handle_task(task)
+            await target_agent.handle_task(task)
         # Wait for all tasks to complete
         await asyncio.sleep(3)
         print("[Manager] Shutting down...")
