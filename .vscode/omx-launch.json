@@ -1,0 +1,38 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "OMX Demo: Run Team",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "omx_integration.demo.run_demo",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "OMX Demo: Skill Router Test",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": ["omx_integration/tests/test_skill_router.py", "-v"],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "OMX Demo: All Tests",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": ["omx_integration/tests/", "-v"],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        }
+    ]
+}
