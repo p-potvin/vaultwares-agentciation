@@ -20,13 +20,31 @@ class CheddarBob:
     def run_environment_scan(self):
         """
         Calls Playwright tools or screenshot mechanisms sequentially.
+        Adds excessive debug logging for tab/page extraction and scan logic.
         """
-        print("[Cheddar Bob]: Initiating exhaustive full-page structural scan...")
-        # Placeholder for tool: browser_snapshot
-        time.sleep(1)
-        print("[Cheddar Bob]: Capturing explicit bounding boxes via take_screenshot tool.")
-        # Placeholder for tool: take_screenshot
-        time.sleep(1)
+        print("[Cheddar Bob][DEBUG]: Starting run_environment_scan()")
+        print(f"[Cheddar Bob][DEBUG]: Target URL is {self.target_url}")
+        print("[Cheddar Bob][DEBUG]: Preparing to launch browser context...")
+        # Simulate browser context setup
+        time.sleep(0.1)
+        print("[Cheddar Bob][DEBUG]: Browser context launched successfully.")
+        print("[Cheddar Bob][DEBUG]: Extracting all open tabs/pages...")
+        # Simulate tab extraction
+        for tab_idx in range(1, 4):
+            print(f"[Cheddar Bob][DEBUG]: Found tab {tab_idx} - URL: {self.target_url}/tab{tab_idx}")
+            print(f"[Cheddar Bob][DEBUG]: Switching to tab {tab_idx} for analysis.")
+            time.sleep(0.05)
+            print(f"[Cheddar Bob][DEBUG]: Tab {tab_idx} DOM loaded. Beginning scan...")
+            print(f"[Cheddar Bob][DEBUG]: Taking browser_snapshot of tab {tab_idx}...")
+            # Placeholder for tool: browser_snapshot
+            time.sleep(0.05)
+            print(f"[Cheddar Bob][DEBUG]: browser_snapshot for tab {tab_idx} complete.")
+            print(f"[Cheddar Bob][DEBUG]: Taking explicit bounding box screenshot of tab {tab_idx}...")
+            # Placeholder for tool: take_screenshot
+            time.sleep(0.05)
+            print(f"[Cheddar Bob][DEBUG]: Screenshot for tab {tab_idx} complete.")
+        print("[Cheddar Bob][DEBUG]: All tabs/pages scanned.")
+        print("[Cheddar Bob][DEBUG]: run_environment_scan() complete.")
 
     def process_visual_verdict(self):
         """
