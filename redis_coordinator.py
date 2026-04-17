@@ -24,6 +24,12 @@ class RedisCoordinator:
         }
         self.r.publish(self.channel, json.dumps(msg))
 
+    def set_state(self, key, value, ex=None):
+        self.r.set(key, value, ex=ex)
+
+    def get_state(self, key):
+        return self.r.get(key)
+
     def listen(self, callback):
         def _listen():
             for message in self.pubsub.listen():

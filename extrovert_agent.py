@@ -197,8 +197,11 @@ class ExtrovertAgent(AgentBase):
         meaningful — statuses are registered, arrivals are welcomed,
         and departures are noted with genuine concern.
         """
-        handle_incoming_message(data, self._peer_registry, self._missed_heartbeats)
         sender = data.get("agent")
+        if not sender or sender == self.agent_id:
+            return
+            
+        handle_incoming_message(data, self._peer_registry, self._missed_heartbeats)
         action = data.get("action")
         target = data.get("target")
         if action == "ASSIGN":
@@ -372,12 +375,10 @@ class ExtrovertAgent(AgentBase):
         hooks.trigger('pre_user_interaction', self)
         self._action_counter += 1
         if self._action_counter % self.ACTIONS_BEFORE_STATUS == 0:
-            hooks.trigger('user_interaction_status_update', self)
+            self._broadcast_status_update()
         result = self.socialize()
         hooks.trigger('post_user_interaction', self)
         return result
-            self._broadcast_status_update()
-        return self.socialize()
 
     # ------------------------------------------------------------------
     # Team Reporting

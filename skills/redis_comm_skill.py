@@ -39,13 +39,15 @@ def handle_incoming_message(data, peer_registry, missed_heartbeats):
     details = data.get('details', {})
     if not sender:
         return
+    import time
+    now = time.time()
     if action == 'HEARTBEAT':
-        register_peer(peer_registry, sender, details.get('status', 'WORKING'), details.get('last_heartbeat', 0))
+        register_peer(peer_registry, sender, details.get('status', 'WORKING'), now)
         missed_heartbeats[sender] = 0
     elif action in ('STATUS', 'STATUS_UPDATE'):
         update_peer_status(peer_registry, sender, details.get('status', 'WORKING'))
     elif action == 'JOIN':
-        register_peer(peer_registry, sender, details.get('status', 'WAITING_FOR_INPUT'), details.get('last_heartbeat', 0))
+        register_peer(peer_registry, sender, details.get('status', 'WAITING_FOR_INPUT'), now)
         missed_heartbeats[sender] = 0
     elif action == 'LEAVE':
         peer_registry.pop(sender, None)

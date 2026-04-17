@@ -1,6 +1,7 @@
 import time
 import os
 import sys
+import subprocess
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from vaultwares_agentciation import ExtrovertAgent
@@ -88,14 +89,40 @@ class VideoAgent(ExtrovertAgent):
         self._publish_result("resize_video", f"Video '{source}' resized to {width}x{height}")
 
     def _sample_frames(self, details: dict):
-        """Extract a set of frames from a video at specified intervals."""
-        source = details.get("source", "unknown")
-        fps = details.get("fps", 1)
-        count = details.get("count", None)
-        print(f"🎞️  [{self.agent_id}] Sampling frames | source={source} | fps={fps} | count={count}")
-        time.sleep(1)
-        frames_sampled = count if count else "all"
-        self._publish_result("sample_frames", f"Sampled {frames_sampled} frames from '{source}' at {fps} fps")
+        """Extract a set of frames from a video at specified intervals using ffmpeg."""
+        source = details.get("source")
+        output_dir = details.get("output_dir", "frames")
+        fps = details.get("fps", 2)
+        
+        if not source or not os.path.exists(source):
+            print(f"❌ [{self.agent_id}] Source video not found: {source}")
+            self._publish_result("sample_frames", f"Error: Source video not found: {source}")
+            return
+
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        print(f"🎞️  [{self.agent_id}] Extracting frames | source={source} | fps={fps} | target={output_dir}")
+        
+        # ffmpeg command to extract frames at a specific FPS
+        cmd = [
+            "ffmpeg", "-y", "-i", source,
+            "-vf", f"fps={fps}",
+            "-q:v", "2",
+            os.path.join(output_dir, "frame_%04d.png")
+        ]
+        
+        try:
+            # Run the command and capture output
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode == 0:
+                self._publish_result("sample_frames", f"Successfully extracted frames to {output_dir}")
+            else:
+                print(f"❌ [{self.agent_id}] ffmpeg error: {result.stderr}")
+                self._publish_result("sample_frames", f"ffmpeg error: {result.stderr[:200]}")
+        except Exception as e:
+            print(f"❌ [{self.agent_id}] Unexpected error: {e}")
+            self._publish_result("sample_frames", f"Unexpected error: {str(e)}")
 
     def _apply_effects(self, details: dict):
         """Apply per-frame effects and overlays to a video."""
