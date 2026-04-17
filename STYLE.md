@@ -18,6 +18,7 @@ VaultWares applications must feel **modern, minimal, and polished** — not like
 ## 🎨 Color Palettes
 
 ### Dark Themes
+
 - **Base background:** Dark blue-gray — approximately `#4A5459`. Not pure black.
 - **Surfaces / cards:** Slightly lighter than base, e.g., `#52606B`.
 - **Accent options (pick one per theme):**
@@ -28,12 +29,14 @@ VaultWares applications must feel **modern, minimal, and polished** — not like
 - **Reference:** [Solarized Dark](https://github.com/altercation/solarized) for tone and saturation guidance.
 
 ### Light Themes
+
 - **Base background:** White or near-white — lighter than Solarized Light's `#fdf6e3`.
 - **Surfaces / cards:** Subtle off-white or light gray (`#f8f8f8` to `#eeeeee` range).
 - **Text:** Dark charcoal, not pure black — approximately `#333333` to `#4A4A4A`.
 - **Reference:** [Solarized Light](https://github.com/altercation/solarized) for hue relationships, but with a whiter, brighter base.
 
 ### Gradients
+
 - Gradients are encouraged when **discreet** — soft, low-contrast directional blends between two related hues.
 - Avoid loud rainbow gradients. Use gradients as depth cues, not decoration.
 - Good uses: card backgrounds, hero sections, sidebar accents, button hover states.
@@ -45,7 +48,7 @@ VaultWares applications must feel **modern, minimal, and polished** — not like
 Use these skins when an app supports multiple themes. Format: `[mode] | [primary] | [accent]`.
 
 | # | Mode | Primary Color | Accent Color |
-|---|------|--------------|--------------|
+| --- | ------ | -------------- | -------------- |
 | 1 | Light | Light beige | Burgundy |
 | 2 | Dark | Solarized `base02` (`#073642`) | Solarized orange (`#cb4b16`) |
 | 3 | Dark | Dark gray (`#2d2d2d`) | Gold yellow (`#f0c040`) |
@@ -83,11 +86,13 @@ Use the [glass-ui library](https://github.com/p-potvin/glass-ui) for glassmorphi
   - Never exceed `400ms` for functional UI feedback.
 - **Easing:** Prefer `ease-out` for entrances, `ease-in` for exits, `ease-in-out` for loops.
 - **Respect `prefers-reduced-motion`:** Wrap all non-essential animations in a media query check:
+
   ```css
   @media (prefers-reduced-motion: reduce) {
       * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
   }
   ```
+
 - **Tailwind animations:** Use `transition`, `duration-*`, `ease-*`, and `animate-*` utilities. Add custom keyframes in `tailwind.config` only when needed.
 
 ---
@@ -119,6 +124,7 @@ Use the [glass-ui library](https://github.com/p-potvin/glass-ui) for glassmorphi
 - Prefix custom tokens with the project or brand name to avoid collisions (e.g., `vault-primary`, `vault-accent`).
 - Do not use arbitrary value syntax (`text-[#cc9b21]`) for repeated design tokens — extract them into the config.
 - Use `clsx` + `tailwind-merge` (`cn()` helper) to compose conditional class strings:
+
   ```typescript
   import { clsx } from "clsx";
   import { twMerge } from "tailwind-merge";
