@@ -3,6 +3,7 @@ import time
 import json
 import logging
 from manager_base import Manager
+from extrovert_agent import ExtrovertAgent
 from enums import AgentStatus
 from skills.spawn_agent_skill import spawn_subagent, remove_subagent
 from hook_registry import hooks
@@ -10,7 +11,7 @@ from hook_registry import hooks
 logger = logging.getLogger(__name__)
 
 
-class LonelyManager(Manager):
+class LonelyManager(ExtrovertAgent, Manager):
     """
     The Lonely Manager is the Extrovert who carries the heaviest burden.
 
@@ -166,6 +167,25 @@ class LonelyManager(Manager):
     # ------------------------------------------------------------------
     # Redis State Management
     # ------------------------------------------------------------------
+
+    def _gather_team_state(self) -> dict:
+        """
+        Gather the current state of all known agents into a single dictionary.
+        """
+        state = {}
+        for agent_id, info in self._peer_registry.items():
+            state[agent_id] = {
+                "status": info.get("status", "UNKNOWN"),
+                "last_heartbeat": info.get("last_heartbeat", 0),
+                "missed_heartbeats": self._missed_heartbeats.get(agent_id, 0),
+            }
+        # Include self in the team state
+        state[self.agent_id] = {
+            "status": self.status.value,
+            "last_heartbeat": time.time(),
+            "missed_heartbeats": 0,
+        }
+        return state
 
     def _persist_team_state_to_redis(self):
         """

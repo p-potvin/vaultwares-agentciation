@@ -376,8 +376,6 @@ class ExtrovertAgent(AgentBase):
         result = self.socialize()
         hooks.trigger('post_user_interaction', self)
         return result
-            self._broadcast_status_update()
-        return self.socialize()
 
     # ------------------------------------------------------------------
     # Team Reporting

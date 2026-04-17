@@ -27,12 +27,12 @@ class HookRegistry:
         if event in self._hooks and func in self._hooks[event]:
             self._hooks[event].remove(func)
 
-    def trigger(self, event, *args, **kwargs):
-        for func in self._hooks.get(event, []):
+    def trigger(self, _event_name, *args, **kwargs):
+        for func in self._hooks.get(_event_name, []):
             try:
                 func(*args, **kwargs)
             except Exception as e:
-                print(f"[Hook error in {event}]: {e}")
+                print(f"[Hook error in {_event_name}]: {e}")
 
 # Global hook registry instance
 hooks = HookRegistry()
