@@ -32,6 +32,8 @@ def update_peer_status(peer_registry, agent_id, status):
     if agent_id in peer_registry:
         peer_registry[agent_id]['status'] = status
 
+import time
+
 def handle_incoming_message(data, peer_registry, missed_heartbeats):
     """Handle an incoming Redis message and update peer state."""
     sender = data.get('agent')
@@ -42,12 +44,20 @@ def handle_incoming_message(data, peer_registry, missed_heartbeats):
     import time
     now = time.time()
     if action == 'HEARTBEAT':
+<<<<<<< HEAD
         register_peer(peer_registry, sender, details.get('status', 'WORKING'), now)
+=======
+        register_peer(peer_registry, sender, details.get('status', 'WORKING'), time.time())
+>>>>>>> b20b117adce7b91bfb13ec0d3a7ae2898127f337
         missed_heartbeats[sender] = 0
     elif action in ('STATUS', 'STATUS_UPDATE'):
         update_peer_status(peer_registry, sender, details.get('status', 'WORKING'))
     elif action == 'JOIN':
+<<<<<<< HEAD
         register_peer(peer_registry, sender, details.get('status', 'WAITING_FOR_INPUT'), now)
+=======
+        register_peer(peer_registry, sender, details.get('status', 'WAITING_FOR_INPUT'), time.time())
+>>>>>>> b20b117adce7b91bfb13ec0d3a7ae2898127f337
         missed_heartbeats[sender] = 0
     elif action == 'LEAVE':
         peer_registry.pop(sender, None)

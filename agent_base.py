@@ -26,9 +26,9 @@ class AgentBase:
             time.sleep(self.heartbeat_interval)
 
     def send_heartbeat(self):
-        hooks.trigger('pre_communication', self, event='heartbeat')
+        hooks.trigger('pre_communication', self, event_key='heartbeat')
         self.coordinator.publish('HEARTBEAT', 'heartbeat', {'status': self.status.value})
-        hooks.trigger('post_communication', self, event='heartbeat')
+        hooks.trigger('post_communication', self, event_key='heartbeat')
 
     def update_status(self, status):
         hooks.trigger('pre_status_update', self, new_status=status)

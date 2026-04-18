@@ -49,8 +49,8 @@ class VideoAgent(ExtrovertAgent):
     # ------------------------------------------------------------------
 
     def _perform_task(self, task: str, details: dict):
-        """Execute a video processing task based on the task identifier."""
-        print(f"🎬 [{self.agent_id}] Executing video task: {task}")
+        """Execute a video processing task using ffmpeg."""
+        print(f"[VideoAgent] [{self.agent_id}] Executing video task: {task}")
 
         handlers = {
             "trim_video": self._trim_video,
@@ -65,30 +65,70 @@ class VideoAgent(ExtrovertAgent):
 
         handler = handlers.get(task)
         if handler:
-            handler(details)
+            try:
+                handler(details)
+            except Exception as e:
+                print(f"[ERROR] [{self.agent_id}] Error in {task}: {e}")
+                self._publish_result(task, f"ERROR: {str(e)}")
         else:
-            print(f"⚠️  [{self.agent_id}] Unknown video task: {task}. Logging and continuing.")
+            print(f"[WARN] [{self.agent_id}] Unknown video task: {task}.")
             self._log_unknown_task(task, details)
 
+    def _get_ffmpeg_path(self):
+        """Return the path to the ffmpeg executable."""
+        # In a real environment, this might be a full path or just 'ffmpeg'
+        return "ffmpeg"
+
     def _trim_video(self, details: dict):
-        """Trim a video to a specified time range."""
-        source = details.get("source", "unknown")
-        start = details.get("start_time", 0)
-        end = details.get("end_time", None)
-        print(f"✂️  [{self.agent_id}] Trimming video | source={source} | {start}s → {end}s")
-        time.sleep(1)
-        self._publish_result("trim_video", f"Video '{source}' trimmed from {start}s to {end}s")
+        """Trim a video to a specified time range using ffmpeg."""
+        source = details.get("source")
+        output = details.get("output", f"trimmed_{os.path.basename(source)}")
+        start = details.get("start_time", "00:00:00")
+        duration = details.get("duration")
+        
+        if not source or not os.path.exists(source):
+            raise FileNotFoundError(f"Source video not found: {source}")
+
+        cmd = [
+            self._get_ffmpeg_path(), "-y",
+            "-ss", str(start),
+            "-i", source
+        ]
+        if duration:
+            cmd += ["-t", str(duration)]
+        
+        cmd += ["-c", "copy", output]
+
+        print(f"[VideoAgent] [{self.agent_id}] Running ffmpeg trim: {' '.join(cmd)}")
+        import subprocess
+        subprocess.run(cmd, check=True)
+        self._publish_result("trim_video", f"Trimmed to {output}")
 
     def _resize_video(self, details: dict):
-        """Resize a video to specified dimensions."""
-        source = details.get("source", "unknown")
+        """Resize a video using ffmpeg."""
+        source = details.get("source")
+        output = details.get("output", f"resized_{os.path.basename(source)}")
         width = details.get("width", 1280)
         height = details.get("height", 720)
-        print(f"📐 [{self.agent_id}] Resizing video | source={source} | {width}x{height}")
-        time.sleep(1)
-        self._publish_result("resize_video", f"Video '{source}' resized to {width}x{height}")
+        
+        if not source or not os.path.exists(source):
+            raise FileNotFoundError(f"Source video not found: {source}")
+
+        cmd = [
+            self._get_ffmpeg_path(), "-y",
+            "-i", source,
+            "-vf", f"scale={width}:{height}",
+            "-c:a", "copy",
+            output
+        ]
+
+        print(f"[VideoAgent] [{self.agent_id}] Running ffmpeg resize: {' '.join(cmd)}")
+        import subprocess
+        subprocess.run(cmd, check=True)
+        self._publish_result("resize_video", f"Resized to {output} ({width}x{height})")
 
     def _sample_frames(self, details: dict):
+<<<<<<< HEAD
         """Extract a set of frames from a video at specified intervals using ffmpeg."""
         source = details.get("source")
         output_dir = details.get("output_dir", "frames")
@@ -123,54 +163,64 @@ class VideoAgent(ExtrovertAgent):
         except Exception as e:
             print(f"❌ [{self.agent_id}] Unexpected error: {e}")
             self._publish_result("sample_frames", f"Unexpected error: {str(e)}")
+=======
+        """Extract frames from a video at a specific FPS into a directory."""
+        source = details.get("source")
+        output_dir = details.get("output_dir", "frames")
+        fps = details.get("fps", 1)
+        
+        if not source or not os.path.exists(source):
+            raise FileNotFoundError(f"Source video not found: {source}")
+
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # ffmpeg -i input.mp4 -vf "fps=1" frames/out%04d.png
+        output_pattern = os.path.join(output_dir, "frame_%04d.png")
+        cmd = [
+            self._get_ffmpeg_path(), "-y",
+            "-i", source,
+            "-vf", f"fps={fps}",
+            output_pattern
+        ]
+
+        print(f"[VideoAgent] [{self.agent_id}] Running ffmpeg sampling: {' '.join(cmd)}")
+        import subprocess
+        subprocess.run(cmd, check=True)
+        
+        frame_count = len([f for f in os.listdir(output_dir) if f.endswith(".png")])
+        self._publish_result("sample_frames", f"Extracted {frame_count} frames to {output_dir}")
+>>>>>>> b20b117adce7b91bfb13ec0d3a7ae2898127f337
 
     def _apply_effects(self, details: dict):
-        """Apply per-frame effects and overlays to a video."""
+        """Apply per-frame effects (placeholder for now, could be ffmpeg filters)."""
         source = details.get("source", "unknown")
         effects = details.get("effects", [])
-        print(f"✨ [{self.agent_id}] Applying effects | source={source} | effects={effects}")
-        for effect in effects:
-            time.sleep(0.3)
-            print(f"  ✅ Applied effect: {effect}")
-        self._publish_result("apply_effects", f"Applied {len(effects)} effects to '{source}'")
+        print(f"[VideoAgent] [{self.agent_id}] Applying effects (STUB) | source={source} | effects={effects}")
+        self._publish_result("apply_effects", f"STUB: Applied {len(effects)} effects")
 
     def _generate_video_caption(self, details: dict):
-        """Generate a caption or summary for a video."""
+        """Generate a caption (placeholder)."""
         source = details.get("source", "unknown")
-        caption_style = details.get("caption_style", "detailed")
-        print(f"💬 [{self.agent_id}] Generating video caption | source={source} | style={caption_style}")
-        time.sleep(1)
-        result = f"[Video caption for '{source}' in '{caption_style}' style]"
-        self._publish_result("generate_caption", result)
+        self._publish_result("generate_caption", f"STUB: Caption for {source}")
 
     def _analyze_video(self, details: dict):
-        """Perform analysis on a video (scene detection, object tracking, etc.)."""
+        """Perform analysis (placeholder)."""
         source = details.get("source", "unknown")
-        analysis_type = details.get("analysis_type", "general")
-        print(f"🔍 [{self.agent_id}] Analyzing video | source={source} | type={analysis_type}")
-        time.sleep(2)
-        result = f"[Video analysis '{analysis_type}' complete for '{source}']"
-        self._publish_result("analyze_video", result)
+        self._publish_result("analyze_video", f"STUB: Analysis for {source}")
 
     def _create_video_workflow(self, details: dict):
-        """Create a video processing workflow definition."""
+        """Create a video processing workflow (placeholder)."""
         workflow_name = details.get("name", "unnamed_workflow")
-        steps = details.get("steps", [])
-        print(f"🔧 [{self.agent_id}] Creating video workflow: {workflow_name} ({len(steps)} steps)")
-        time.sleep(1)
-        self._publish_result("create_workflow", f"Video workflow '{workflow_name}' created with {len(steps)} steps")
+        self._publish_result("create_workflow", f"STUB: Workflow {workflow_name} created")
 
     def _export_comfyui(self, details: dict):
-        """Export a workflow to ComfyUI JSON format."""
+        """Export to ComfyUI (placeholder)."""
         workflow_name = details.get("workflow_name", "unnamed")
-        output_path = details.get("output_path", f"{workflow_name}.json")
-        print(f"📦 [{self.agent_id}] Exporting to ComfyUI: {workflow_name} → {output_path}")
-        time.sleep(1)
-        self._publish_result("export_comfyui", f"ComfyUI export complete: {output_path}")
+        self._publish_result("export_comfyui", f"STUB: ComfyUI export for {workflow_name}")
 
     def _log_unknown_task(self, task: str, details: dict):
         """Log an unrecognized task for debugging."""
-        print(f"📋 [{self.agent_id}] Unknown task '{task}' — details: {details}")
+        print(f"[VideoAgent] [{self.agent_id}] Unknown task '{task}' - details: {details}")
 
     def _publish_result(self, task: str, result: str):
         """Publish a task result back to the Redis channel."""
@@ -181,6 +231,7 @@ class VideoAgent(ExtrovertAgent):
                 "agent": self.agent_id,
                 "task": task,
                 "result": result,
+                "timestamp": time.time()
             },
         )
-        print(f"📤 [{self.agent_id}] Result published for task '{task}'")
+        print(f"[VideoAgent] [{self.agent_id}] Result published for task '{task}'")
