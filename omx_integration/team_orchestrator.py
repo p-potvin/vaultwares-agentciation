@@ -99,7 +99,14 @@ class TeamOrchestrator:
         # Create workers
         for i in range(self.worker_count):
             role = self.worker_roles[i] if i < len(self.worker_roles) else "executor"
-            worker = OMXWorker(
+            
+            if role == "cheddar-bob":
+                from omx_integration.cheddar_bob_worker import CheddarBobWorker
+                worker_cls = CheddarBobWorker
+            else:
+                worker_cls = OMXWorker
+
+            worker = worker_cls(
                 worker_id=f"worker-{i+1}",
                 team_name=self.team_name,
                 project_dir=self.project_dir,

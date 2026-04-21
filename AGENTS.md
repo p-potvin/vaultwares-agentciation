@@ -31,6 +31,9 @@ Role prompts under `omx_integration/prompts/*.md` are narrower execution surface
 - No new dependencies without explicit request.
 - Keep diffs small, reviewable, and reversible.
 - Run lint, typecheck, tests, and static analysis after changes.
+- **Workflow Requirement:** Always branch from `main` (or the primary branch) at the start of a task.
+- **Merge Prevention:** Never merge to `main` directly.
+- **Deliverable:** Create a PR at the end of every task for human review. The user will judge when to merge.
 - Final reports must include changed files, simplifications made, and remaining risks.
 
 ---
@@ -76,6 +79,7 @@ Key roles:
 - `architect` — read-only analysis, diagnosis, tradeoffs
 - `debugger` — root-cause analysis
 - `executor` — implementation and refactoring
+- `cheddar-bob` — brutal UI/UX critique and pixel-perfect layout fixes
 - `verifier` — completion evidence and validation
 </agent_catalog>
 

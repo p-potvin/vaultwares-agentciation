@@ -128,7 +128,6 @@ class VideoAgent(ExtrovertAgent):
         self._publish_result("resize_video", f"Resized to {output} ({width}x{height})")
 
     def _sample_frames(self, details: dict):
-<<<<<<< HEAD
         """Extract a set of frames from a video at specified intervals using ffmpeg."""
         source = details.get("source")
         output_dir = details.get("output_dir", "frames")
@@ -163,33 +162,6 @@ class VideoAgent(ExtrovertAgent):
         except Exception as e:
             print(f"❌ [{self.agent_id}] Unexpected error: {e}")
             self._publish_result("sample_frames", f"Unexpected error: {str(e)}")
-=======
-        """Extract frames from a video at a specific FPS into a directory."""
-        source = details.get("source")
-        output_dir = details.get("output_dir", "frames")
-        fps = details.get("fps", 1)
-        
-        if not source or not os.path.exists(source):
-            raise FileNotFoundError(f"Source video not found: {source}")
-
-        os.makedirs(output_dir, exist_ok=True)
-        
-        # ffmpeg -i input.mp4 -vf "fps=1" frames/out%04d.png
-        output_pattern = os.path.join(output_dir, "frame_%04d.png")
-        cmd = [
-            self._get_ffmpeg_path(), "-y",
-            "-i", source,
-            "-vf", f"fps={fps}",
-            output_pattern
-        ]
-
-        print(f"[VideoAgent] [{self.agent_id}] Running ffmpeg sampling: {' '.join(cmd)}")
-        import subprocess
-        subprocess.run(cmd, check=True)
-        
-        frame_count = len([f for f in os.listdir(output_dir) if f.endswith(".png")])
-        self._publish_result("sample_frames", f"Extracted {frame_count} frames to {output_dir}")
->>>>>>> b20b117adce7b91bfb13ec0d3a7ae2898127f337
 
     def _apply_effects(self, details: dict):
         """Apply per-frame effects (placeholder for now, could be ffmpeg filters)."""

@@ -45,17 +45,7 @@ class RedisCoordinator:
         self.listener_thread = threading.Thread(target=_listen, daemon=True)
         self.listener_thread.start()
 
-<<<<<<< HEAD
-=======
-    def set_state(self, key, value, ex=None):
-        """Set a value in Redis with an optional expiration time."""
-        self.r.set(key, value, ex=ex)
 
-    def get_state(self, key):
-        """Retrieve a value from Redis."""
-        return self.r.get(key)
-
->>>>>>> b20b117adce7b91bfb13ec0d3a7ae2898127f337
     def stop(self):
         self.running = False
         if self.listener_thread:

@@ -325,17 +325,81 @@ dotnet publish -c Release
 ```
 
 ---
+- **Authentication:** Passwords hashed with `bcryptjs` (Node) or `bcrypt` (Python). JWT tokens expire in 24 hours; verify signature on every protected route.
+- **Secrets:** Use GCP Secret Manager. Never commit `.env` files. Add `.env*` to `.gitignore`. Document required variables in `.env.example` with placeholder values only.
+- **Minimalist footprint:** Zero-dependency policy for non-essential features. Every third-party package must justify its inclusion.
+- **Row-Level Security (RLS):** Enforce user-scoped data access at the query level (filter by `user_id` from the authenticated JWT). Design for RLS even when using managed PostgreSQL.
+- **Extension security (Chrome extensions):** Declare only the minimum required permissions in `manifest.json`. Never request `<all_urls>` unless strictly necessary.
+
+---
+
+## 🛠️ Getting Started
+
+### All Projects
+```bash
+git fetch
+git pull
+```
+
+### Node.js / Next.js Projects
+```bash
+npm install
+cp .env.example .env.local  # Fill in your environment variables
+npm run build && npm run start
+```
+
+For development with hot-reload:
+```bash
+npm run dev
+```
+
+### Python Projects
+```bash
+python -m venv .venv
+# Windows
+.\.venv\Scripts\activate
+# macOS / Linux
+source .venv/bin/activate
+
+pip install -r requirements.txt
+python main_app.py
+```
+
+**CLI wrapper (Windows):** Create `your-project.cmd` next to `your-project.py`:
+```cmd
+@echo off
+python "%~dp0your-project.py" %*
+```
+Add the folder containing the `.cmd` file to your `PATH`. Then run:
+```powershell
+your-project your-command your-argument --your-flags
+```
+
+### C# / WinUI 3 Projects
+```bash
+dotnet restore
+dotnet build
+dotnet run
+```
+For production packaging:
+```bash
+dotnet publish -c Release
+```
+
+---
 
 ## 📋 Code Review Checklist
 
 Before opening a PR, confirm all applicable items:
 
+- [ ] Always branch from `main` (or the primary branch) at the start of a task
 - [ ] No `any` types; all inputs and API responses are Zod-validated (TypeScript)
 - [ ] No hardcoded secrets or credentials anywhere in the diff
 - [ ] No personal data in logs or analytics by default; telemetry is opt-in and documented when used
 - [ ] No new tracking/fingerprinting introduced (including “anonymous” identifiers that can be linked back to a person)
 - [ ] SQL queries use parameterized syntax — no string interpolation
 - [ ] CorrelationId generated and propagated through logs and error responses
+- [ ] Create a PR at the end of every task for human review (never merge directly to main)
 - [ ] All user-visible strings are externalized via i18n (web projects)
 - [ ] New UI elements reuse existing Shadcn / `@/components/ui` primitives where possible
 - [ ] `console.log`, `print()`, debug statements removed
