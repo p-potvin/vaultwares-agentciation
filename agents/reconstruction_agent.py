@@ -1,11 +1,12 @@
-import time
 import os
-import sys
+import shutil
 import subprocess
+import sys
+import time
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from vaultwares_agentciation import ExtrovertAgent
-from vaultwares_agentciation import AgentStatus
+from vaultwares_agentciation import AgentStatus, ExtrovertAgent
+
 
 class ReconstructionAgent(ExtrovertAgent):
     """
@@ -66,24 +67,42 @@ class ReconstructionAgent(ExtrovertAgent):
         
         if not images_dir or not os.path.exists(images_dir):
             raise FileNotFoundError(f"Images directory not found: {images_dir}")
+        image_count = len([name for name in os.listdir(images_dir) if name.lower().endswith((".png", ".jpg", ".jpeg"))])
+        if image_count == 0:
+            raise RuntimeError(f"No input images found in: {images_dir}")
 
         os.makedirs(output_dir, exist_ok=True)
+        ns_process_data = shutil.which("ns-process-data")
+        colmap_bin = shutil.which("colmap")
+        if colmap_bin is None:
+            print(f"[WARN] [{self.agent_id}] COLMAP executable not found on PATH. Using placeholder reconstruction.")
+            mock_path = os.path.join(output_dir, "cloud.usda")
+            from pxr import Gf, Usd, UsdGeom
+            stage = Usd.Stage.CreateNew(mock_path)
+            UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.y)
+            points = UsdGeom.Points.Define(stage, "/Reconstruction")
+            points.GetPointsAttr().Set([Gf.Vec3f(0, 0, 0)])
+            stage.GetRootLayer().Save()
+            self._publish_result("run_colmap", f"MOCKED: COLMAP missing. Created {mock_path}")
+            return
+        if ns_process_data is None:
+            raise RuntimeError("ns-process-data not found on PATH")
         
         cmd = [
-            "ns-process-data", "images",
+            ns_process_data, "images",
             "--data", images_dir,
             "--output-dir", output_dir
         ]
 
         print(f"[ReconstructionAgent] [{self.agent_id}] Running COLMAP via Nerfstudio: {' '.join(cmd)}")
         try:
-            subprocess.run(cmd, check=True)
+            subprocess.run(cmd, check=True, timeout=3600)
             self._publish_result("run_colmap", f"Sparse reconstruction complete in {output_dir}")
         except Exception as e:
             print(f"[WARN] [{self.agent_id}] COLMAP failed: {e}. Falling back to PLACEHOLDER.")
             # Create a mock cloud.usda so the pipeline can continue to Phase 2/3
             mock_path = os.path.join(output_dir, "cloud.usda")
-            from pxr import Usd, UsdGeom, Gf
+            from pxr import Gf, Usd, UsdGeom
             stage = Usd.Stage.CreateNew(mock_path)
             UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.y)
             points = UsdGeom.Points.Define(stage, "/Reconstruction")
@@ -100,21 +119,32 @@ class ReconstructionAgent(ExtrovertAgent):
         
         if not data_dir or not os.path.exists(data_dir):
             raise FileNotFoundError(f"Data directory not found: {data_dir}")
+        transforms_path = os.path.join(data_dir, "transforms.json")
+        if not os.path.exists(transforms_path):
+            self._publish_result("train_gsplat", f"SKIPPED: missing {transforms_path}")
+            return
 
         # ns-train splatfacto --data <data_dir>
+        ns_train = shutil.which("ns-train")
+        if ns_train is None:
+            self._publish_result("train_gsplat", "SKIPPED: ns-train not found on PATH")
+            return
         cmd = [
-            "ns-train", "splatfacto",
+            ns_train, "splatfacto",
             "--data", data_dir,
             "--output-dir", output_dir,
             "--max-num-iterations", str(iterations),
-            "--vis", "viewer+tensorboard"
+            "--vis", "tensorboard"
         ]
 
         print(f"[ReconstructionAgent] [{self.agent_id}] Training gsplat: {' '.join(cmd)}")
         # Note: This is an async/long-running task. In a real scenario, we might
         # want to run this in a background process and signal progress.
-        subprocess.run(cmd, check=True)
-        self._publish_result("train_gsplat", f"gsplat training complete. Outputs in {output_dir}")
+        try:
+            subprocess.run(cmd, check=True, timeout=3600)
+            self._publish_result("train_gsplat", f"gsplat training complete. Outputs in {output_dir}")
+        except Exception as e:
+            self._publish_result("train_gsplat", f"ERROR: gsplat training failed: {e}")
 
     def _extract_mesh(self, details: dict):
         """Extract a mesh from a trained model (Neuralangelo or Splat)."""
