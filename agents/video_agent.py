@@ -1,11 +1,11 @@
-import time
 import os
-import sys
+import shutil
 import subprocess
+import sys
+import time
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from vaultwares_agentciation import ExtrovertAgent
-from vaultwares_agentciation import AgentStatus
 
 
 class VideoAgent(ExtrovertAgent):
@@ -76,8 +76,10 @@ class VideoAgent(ExtrovertAgent):
 
     def _get_ffmpeg_path(self):
         """Return the path to the ffmpeg executable."""
-        # In a real environment, this might be a full path or just 'ffmpeg'
-        return "ffmpeg"
+        ffmpeg = shutil.which("ffmpeg")
+        if ffmpeg is None:
+            raise RuntimeError("ffmpeg not found on PATH")
+        return ffmpeg
 
     def _trim_video(self, details: dict):
         """Trim a video to a specified time range using ffmpeg."""
@@ -100,8 +102,7 @@ class VideoAgent(ExtrovertAgent):
         cmd += ["-c", "copy", output]
 
         print(f"[VideoAgent] [{self.agent_id}] Running ffmpeg trim: {' '.join(cmd)}")
-        import subprocess
-        subprocess.run(cmd, check=True)
+        self._run_subprocess(cmd)
         self._publish_result("trim_video", f"Trimmed to {output}")
 
     def _resize_video(self, details: dict):
@@ -123,45 +124,37 @@ class VideoAgent(ExtrovertAgent):
         ]
 
         print(f"[VideoAgent] [{self.agent_id}] Running ffmpeg resize: {' '.join(cmd)}")
-        import subprocess
-        subprocess.run(cmd, check=True)
+        self._run_subprocess(cmd)
         self._publish_result("resize_video", f"Resized to {output} ({width}x{height})")
 
     def _sample_frames(self, details: dict):
-        """Extract a set of frames from a video at specified intervals using ffmpeg."""
+        """Extract frames from a video at a specific FPS into a directory."""
         source = details.get("source")
         output_dir = details.get("output_dir", "frames")
         fps = details.get("fps", 2)
-        
+
         if not source or not os.path.exists(source):
-            print(f"❌ [{self.agent_id}] Source video not found: {source}")
-            self._publish_result("sample_frames", f"Error: Source video not found: {source}")
-            return
+            raise FileNotFoundError(f"Source video not found: {source}")
 
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+        os.makedirs(output_dir, exist_ok=True)
+        for file_name in os.listdir(output_dir):
+            if file_name.lower().endswith(".png"):
+                os.remove(os.path.join(output_dir, file_name))
 
-        print(f"🎞️  [{self.agent_id}] Extracting frames | source={source} | fps={fps} | target={output_dir}")
-        
-        # ffmpeg command to extract frames at a specific FPS
+        output_pattern = os.path.join(output_dir, "frame_%04d.png")
         cmd = [
-            "ffmpeg", "-y", "-i", source,
+            self._get_ffmpeg_path(), "-y",
+            "-i", source,
             "-vf", f"fps={fps}",
             "-q:v", "2",
-            os.path.join(output_dir, "frame_%04d.png")
+            output_pattern
         ]
-        
-        try:
-            # Run the command and capture output
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            if result.returncode == 0:
-                self._publish_result("sample_frames", f"Successfully extracted frames to {output_dir}")
-            else:
-                print(f"❌ [{self.agent_id}] ffmpeg error: {result.stderr}")
-                self._publish_result("sample_frames", f"ffmpeg error: {result.stderr[:200]}")
-        except Exception as e:
-            print(f"❌ [{self.agent_id}] Unexpected error: {e}")
-            self._publish_result("sample_frames", f"Unexpected error: {str(e)}")
+
+        print(f"[VideoAgent] [{self.agent_id}] Running ffmpeg sampling: {' '.join(cmd)}")
+        self._run_subprocess(cmd)
+
+        frame_count = len([f for f in os.listdir(output_dir) if f.endswith(".png")])
+        self._publish_result("sample_frames", f"Extracted {frame_count} frames to {output_dir}")
 
     def _apply_effects(self, details: dict):
         """Apply per-frame effects (placeholder for now, could be ffmpeg filters)."""
@@ -207,3 +200,12 @@ class VideoAgent(ExtrovertAgent):
             },
         )
         print(f"[VideoAgent] [{self.agent_id}] Result published for task '{task}'")
+
+    def _run_subprocess(self, cmd: list[str], timeout: int = 1800):
+        completed = subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=timeout)
+        if completed.stdout:
+            print(completed.stdout.strip())
+        if completed.stderr:
+            print(completed.stderr.strip())
+        if completed.returncode != 0:
+            raise RuntimeError(f"Command failed ({completed.returncode}): {' '.join(cmd)}")

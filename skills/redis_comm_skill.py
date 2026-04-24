@@ -11,6 +11,8 @@ Usage:
     )
 """
 
+import time
+
 def publish_status(coordinator, agent_id, status):
     """Publish the agent's status to Redis."""
     coordinator.publish('STATUS', 'status_update', {'agent': agent_id, 'status': status})
@@ -32,8 +34,6 @@ def update_peer_status(peer_registry, agent_id, status):
     if agent_id in peer_registry:
         peer_registry[agent_id]['status'] = status
 
-import time
-
 def handle_incoming_message(data, peer_registry, missed_heartbeats):
     """Handle an incoming Redis message and update peer state."""
     sender = data.get('agent')
@@ -41,7 +41,6 @@ def handle_incoming_message(data, peer_registry, missed_heartbeats):
     details = data.get('details', {})
     if not sender:
         return
-    import time
     now = time.time()
     if action == 'HEARTBEAT':
         register_peer(peer_registry, sender, details.get('status', 'WORKING'), now)

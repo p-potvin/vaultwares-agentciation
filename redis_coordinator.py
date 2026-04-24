@@ -45,7 +45,6 @@ class RedisCoordinator:
         self.listener_thread = threading.Thread(target=_listen, daemon=True)
         self.listener_thread.start()
 
-
     def stop(self):
         self.running = False
         if self.listener_thread:
