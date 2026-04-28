@@ -82,7 +82,7 @@ def main():
     manager.start()
     
     print(f"\n--- 🤖 Live Agent Pool Status ---")
-    for agent_id, info in manager._peer_registry.items():
+    for agent_id, info in manager.get_peer_registry().items():
         status = info.get("status", "OFFLINE")
         task_info = f" (Current Task: {info.get('task', 'None')})" if info.get('task') else ""
         print(f"[{agent_id}] Status: {status}{task_info}")
@@ -98,10 +98,11 @@ def main():
             
             # Print Dynamic Status Update (to stdout)
             print("\r" + " " * 80 + "\r", end="") # Clear line
-            print(f"Agents Scanned: {len(manager._peer_registry)} | Tasks Free (M:{len(available_main_tasks)} S:{len(available_subtasks)})", end="", flush=True)
+            peer_registry = manager.get_peer_registry()
+            print(f"Agents Scanned: {len(peer_registry)} | Tasks Free (M:{len(available_main_tasks)} S:{len(available_subtasks)})", end="", flush=True)
 
             # Check for RELAXING agents (WAITING_FOR_INPUT requires manual intervention/PR merge)
-            for agent_id, info in manager._peer_registry.items():
+            for agent_id, info in peer_registry.items():
                 status = str(info.get("status", "")).upper()
                 
                 # We OMIT AgentStatus.WAITING_FOR_INPUT.value here because they 

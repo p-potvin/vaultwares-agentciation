@@ -21,8 +21,8 @@ def main():
             # The agents are running in background threads
             # Manager will log peer discoveries via Redis
             time.sleep(10)
-            print(f"\n[System Check] Peer Registry Size: {len(manager._peer_registry)}")
-            for peer_id, info in manager._peer_registry.items():
+            print(f"\n[System Check] Peer Registry Size: {len(manager.get_peer_registry())}")
+            for peer_id, info in manager.get_peer_registry().items():
                 print(f"  - {peer_id}: {info.get('status', 'UNKNOWN')}")
                 
     except KeyboardInterrupt:

@@ -29,7 +29,7 @@ class AgentRegistry:
         return {
             name: {
                 'capabilities': info['capabilities'],
-                'context_schema': info['context_schema'].__name__ if info['context_schema'] else None
+                'context_schema': getattr(info['context_schema'], '__name__', repr(info['context_schema']))
             }
             for name, info in cls._agents.items()
         }

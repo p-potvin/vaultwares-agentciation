@@ -73,7 +73,7 @@ def main():
     try:
         while time.time() - start_time < 20:
             print(f"\n[Status Check] T+{int(time.time() - start_time)}s")
-            for peer_id, info in manager._peer_registry.items():
+            for peer_id, info in manager.get_peer_registry().items():
                 print(f"  - {peer_id}: {info.get('status', 'OFFLINE')}")
             time.sleep(5)
     except KeyboardInterrupt:

@@ -23,7 +23,7 @@ def main():
     try:
         while time.time() - start_time < 10:
             print(f"\n[System Check] Time: {int(time.time() - start_time)}s")
-            for peer_id, info in manager._peer_registry.items():
+            for peer_id, info in manager.get_peer_registry().items():
                 status = info.get('status', 'UNKNOWN')
                 print(f"  - {peer_id}: {status}")
             time.sleep(2)
