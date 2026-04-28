@@ -189,6 +189,19 @@ class ExtrovertAgent(AgentBase):
         )
 
     # ------------------------------------------------------------------
+    # Peer Registry
+    # ------------------------------------------------------------------
+
+    def get_peer_registry(self) -> dict:
+        """Return a copy of the live peer registry.
+
+        Keys are agent IDs; values are dicts with at least ``status`` and
+        ``last_heartbeat`` entries. Returns a shallow copy so callers cannot
+        accidentally mutate internal state.
+        """
+        return dict(self._peer_registry)
+
+    # ------------------------------------------------------------------
     # Inbound Message Handling
     # ------------------------------------------------------------------
 
