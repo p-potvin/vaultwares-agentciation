@@ -71,6 +71,7 @@ class ExtrovertAgent(AgentBase):
         redis_db=0,
     ):
         super().__init__(agent_id, channel, redis_host, redis_port, redis_db)
+        self.status = AgentStatus.RELAXING
         self.heartbeat_interval = self.HEARTBEAT_INTERVAL
 
         # Live registry of all known peers: agent_id -> {status, last_heartbeat}
@@ -220,7 +221,7 @@ class ExtrovertAgent(AgentBase):
             self._perform_task(task, details)
             self._update_tasks_md_finished(task)
             print(f"✅ [{self.agent_id}] Task {task} complete.")
-            self.update_status(AgentStatus.WAITING_FOR_INPUT)
+            self.update_status(AgentStatus.RELAXING)
             hooks.trigger('post_assignment', self, task=task, details=details)
 
             # Publish task completion so peers (and LonelyManager) can react
@@ -268,9 +269,11 @@ class ExtrovertAgent(AgentBase):
     def _update_tasks_md_finished(self, task_id):
         """Mark a task as finished ([x]) in TODO.md."""
         try:
-            tasks_path = os.path.join(os.getcwd(), "TODO.md")
+            tasks_path = r"C:\Users\Administrator\Desktop\Github Repos\vaultwares-cli\TASKS.md"
             if not os.path.exists(tasks_path):
-                return
+                tasks_path = r"C:\Users\Administrator\Desktop\Github Repos\vaultwares-cli\TODO.md"
+                if not os.path.exists(tasks_path):
+                    return
 
             with open(tasks_path, "r", encoding="utf-8") as f:
                 content = f.read()
