@@ -73,7 +73,7 @@ def update_task_status(task_id, new_status):
         f.writelines(new_lines)
 
 def main():
-    print("--- 🚀 Initializing Generic Task Assignment System ---")
+    print("--- Initializing Generic Task Assignment System ---")
     
     r = redis.Redis(host='localhost', port=6379, db=0)
     channel = 'tasks'
@@ -81,7 +81,7 @@ def main():
     manager = LonelyManager(agent_id="manager-alpha")
     manager.start()
     
-    print(f"\n--- 🤖 Live Agent Pool Status ---")
+    print(f"\n--- Live Agent Pool Status ---")
     for agent_id, info in manager.get_peer_registry().items():
         status = info.get("status", "OFFLINE")
         task_info = f" (Current Task: {info.get('task', 'None')})" if info.get('task') else ""
@@ -93,8 +93,8 @@ def main():
         while True:
             # Refresh Task List from TASKS.md
             current_tasks = parse_tasks()
-            available_main_tasks = [t for t in current_tasks if t["type"] == "main" and t["status"] == " "]
-            available_subtasks = [t for t in current_tasks if t["type"] == "subtask" and t["status"] == " "]
+            available_main_tasks = [t for t in current_tasks if t["type"] == "main" and t["status"] == ""]
+            available_subtasks = [t for t in current_tasks if t["type"] == "subtask" and t["status"] == ""]
             
             # Print Dynamic Status Update (to stdout)
             print("\r" + " " * 80 + "\r", end="") # Clear line
@@ -127,7 +127,7 @@ def main():
             time.sleep(1) # Frequency of check loop
             
     except KeyboardInterrupt:
-        print("\n--- ⏹ Shutdown Requested ---")
+        print("\n--- Shutdown Requested ---")
         manager.stop()
         sys.exit(0)
 
