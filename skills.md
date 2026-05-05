@@ -60,3 +60,11 @@ An Extrovert that silently completes a task without broadcasting its status, wit
 ---
 
 This file should be imported and referenced by all VaultWares agents for consistent, robust, and compliant behavior.
+
+## vault-designer Skill
+
+- Theme Selection: List and apply any VaultWares theme from VaultThemeManager to the live GUI.
+- Token Inspection: Retrieve design-token maps (VaultTheme.to_qss_map()) for any theme.
+- Live Refresh: Propagate theme changes via SettingsTab.theme_changed signal and DashboardWidget.refresh_cards.
+- Defined in: vault-designer/SKILL.md
+
