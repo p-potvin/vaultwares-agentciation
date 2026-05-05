@@ -187,3 +187,17 @@ python -m omx_integration.demo.run_demo
 - **macOS/Linux**: Full support
 - **Windows Native**: Core features work (Python + Redis for Windows)
 - **WSL**: Full support (behaves like Linux)
+
+# Skill Distribution
+
+The canonical VaultWares theming skill is defined in `skills/vault-designer/SKILL.md`.
+
+Agent/IDE/CLI format variants:
+- Claude: `CLAUDE.md`
+- GitHub Copilot: `.github/copilot-instructions.md`
+- Cursor IDE: `.cursor/rules/vault-designer.mdc`
+- Windsurf: `.windsurfrules`
+- Definitions: `definitions/vault_designer.md`
+- Registry: `skills.md`
+
+All code and UI in this repo must follow the rules and usage patterns in the canonical skill file.

@@ -10,6 +10,7 @@ This file aggregates all relevant agent skills for VaultWares projects, deduplic
 - Testing & Cleanup: Run relevant tests after significant changes; clean up environment, temporary files, commented code and artifacts.
 - Update Documentation: Update docs (README, INSTRUCTIONS, agent.md, .gitignore) before responding if code changes.
 - Skill Selection: Map user prompts to skills based on keywords; always add ResponseQualitySkill.
+- **VaultWares Theming**: Enforce design-token usage and theming rules in all code and UI. See `skills/vault-designer/SKILL.md` for details and usage patterns.
 
 ## Must-Have Skills (Added)
 - Privacy-First Coding: Prioritize individuals' privacy in all product decisions and data handling; use security as the supporting tool, not the headline.
