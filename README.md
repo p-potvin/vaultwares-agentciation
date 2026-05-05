@@ -7,6 +7,7 @@ Designed to be installed as a Git submodule into other VaultWares projects.
 
 ```
 vaultwares-agentciation/
+├── docs/                       # Reference docs (canonical)
 ├── vaultwares_agentciation/    # Python import shim (underscore — importable)
 │   └── __init__.py             # importlib shim; loads core modules from submodule root
 ├── agents/                     # Specialized agent implementations
@@ -33,6 +34,18 @@ vaultwares-agentciation/
 ├── redis.conf                  # Redis server configuration
 └── requirements.txt            # Python dependencies (redis>=5.0.0)
 ```
+
+## Docs
+
+Canonical reference docs live under `docs/`. Root-level `*.md` files that used to contain large documents are kept as thin pointers for compatibility with external tooling and links.
+
+## Workspace Tools
+
+- `tools/audit_agent_surfaces.py` — scans repos for agent-related instruction/skill/tool surfaces
+- `tools/migrate_agent_assets.py` — cautious importer for reusable assets into this repo (dry-run by default)
+- `tools/sync_agentciation_rules.py` — managed-block sync into consumer repos (`--check` / `--write`)
+
+Consumer integration notes: `docs/consumer-integration.md`
 
 ## Getting Started
 
