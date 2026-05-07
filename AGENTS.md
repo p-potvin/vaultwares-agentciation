@@ -7,7 +7,15 @@ USE CODEX NATIVE SUBAGENTS FOR INDEPENDENT PARALLEL SUBTASKS WHEN THAT IMPROVES 
 
 # VaultWares Agentciation — OMX Operating Contract
 
-You are running with oh-my-codex (OMX) integration in the VaultWares Agentciation framework.
+> **Lexicon:** See `docs/LEXICON.md` for standard VaultWares terminology (Host,
+> AI Assistant, Agent, Global Instructions Path, Source of Truth).
+> **Architecture:** See `docs/ARCHITECTURE.md` for the Single Source of Truth
+> information flow and sync mechanism.
+
+This repo defines how AI Assistants coordinate, delegate, and operate within
+VaultWares projects. It owns the OMX contract, Agent definitions (personality/role
+markdown files), delegation rules, and the Lore commit protocol.
+
 This AGENTS.md is the top-level operating contract for the workspace.
 Role prompts under `omx_integration/prompts/*.md` are narrower execution surfaces. They must follow this file, not override it.
 
@@ -73,7 +81,7 @@ Rules:
 ---
 
 <agent_catalog>
-Key roles:
+OMX delegation roles (these are runtime roles, not VaultWares Agents):
 - `explore` — fast codebase search and mapping
 - `planner` — work plans and sequencing
 - `architect` — read-only analysis, diagnosis, tradeoffs
@@ -81,6 +89,10 @@ Key roles:
 - `executor` — implementation and refactoring
 - `cheddar-bob` — brutal UI/UX critique and pixel-perfect layout fixes
 - `verifier` — completion evidence and validation
+
+VaultWares Agent definitions (personality/role markdown files) live under
+`definitions/` and `omx_integration/prompts/`. See `docs/LEXICON.md` for the
+distinction between OMX roles and VaultWares Agents.
 </agent_catalog>
 
 <keyword_detection>
@@ -192,12 +204,12 @@ python -m omx_integration.demo.run_demo
 
 The canonical VaultWares theming skill is defined in `skills/vault-designer/SKILL.md`.
 
-Agent/IDE/CLI format variants:
-- Claude: `CLAUDE.md`
+Host-specific instruction file variants:
+- Claude Code / Claude Desktop: `CLAUDE.md`
 - GitHub Copilot: `.github/copilot-instructions.md`
 - Cursor IDE: `.cursor/rules/vault-designer.mdc`
 - Windsurf: `.windsurfrules`
-- Definitions: `definitions/vault_designer.md`
+- Agent definitions: `definitions/vault_designer.md`
 - Registry: `skills.md`
 
 All code and UI in this repo must follow the rules and usage patterns in the canonical skill file.
