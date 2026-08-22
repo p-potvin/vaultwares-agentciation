@@ -40,7 +40,8 @@ from .worker import get_worker
 class ModelRun:
     """Context manager that times one model invocation and records it."""
 
-    __slots__ = ("record", "_clock", "_sampled_gpu", "_finished", "_gpu_index")
+    __slots__ = ("record", "_clock", "_sampled_gpu", "_finished", "_gpu_index",
+                 "_status_explicit")
 
     def __init__(
         self,
@@ -84,6 +85,9 @@ class ModelRun:
         self._sampled_gpu = False
         self._finished = False
         self._gpu_index = gpu_index
+        # Set once a caller states the outcome itself, so the exception
+        # handler does not overwrite a deliberate verdict.
+        self._status_explicit = False
 
     # ── lifecycle ─────────────────────────────────────────────────────────
 
@@ -190,6 +194,8 @@ class ModelRun:
         for key, value in fields.items():
             if key in known:
                 setattr(self.record, key, value)
+                if key == "status":
+                    self._status_explicit = True
             else:
                 self.record.extra[key] = value
         return self
@@ -208,6 +214,7 @@ class ModelRun:
 
     def ok(self, finish_reason: Optional[str] = None) -> "ModelRun":
         self.record.status = STATUS_OK
+        self._status_explicit = True
         if finish_reason:
             self.record.finish_reason = finish_reason
         return self
@@ -229,6 +236,7 @@ class ModelRun:
         self.record.status = STATUS_REJECTED
         self.record.error_class = error_class
         self.record.error_message = reason
+        self._status_explicit = True
         return self
 
     # ── emit ──────────────────────────────────────────────────────────────
@@ -245,8 +253,17 @@ class ModelRun:
             self.record.ended_at = utc_now()
 
         if exc is not None:
-            self.fail(exc)
-        elif exc_type is not None:
+            # An explicitly declared outcome wins over the exception. A caller
+            # that raises after calling reject() -- a declined price, a budget
+            # refusal -- means "this was a decision, and it aborted the call";
+            # overwriting that with `error` would put every policy stop in the
+            # failure rate. The exception detail is still captured.
+            if self._status_explicit:
+                self.record.error_class = self.record.error_class or type(exc).__name__
+                self.record.error_message = self.record.error_message or str(exc)
+            else:
+                self.fail(exc)
+        elif exc_type is not None and not self._status_explicit:
             self.record.status = STATUS_ERROR
             self.record.error_class = getattr(exc_type, "__name__", "Error")
 
