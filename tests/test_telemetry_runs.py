@@ -446,3 +446,59 @@ class TestGpuAttribution(unittest.TestCase):
         from vaultwares_adk.telemetry import stats
 
         self.assertIn("probes", stats())
+
+
+class TestExplicitStatusWins(unittest.TestCase):
+    """A declared outcome must survive the exception handler.
+
+    Found in vaultwares-studio: a declined HF Job price called set(status=
+    "rejected") and then re-raised, and __exit__ overwrote it with "error" --
+    putting a user's spending decision into the failure rate.
+    """
+
+    def setUp(self):
+        _isolated_spool()
+
+    def test_rejected_survives_a_raise(self):
+        run = ModelRun(provider="p", runtime="r", model="m")
+        with self.assertRaises(RuntimeError):
+            with run:
+                run.reject("user declined $0.30")
+                raise RuntimeError("aborting after refusal")
+        self.assertEqual(run.record.status, "rejected")
+
+    def test_explicit_set_status_survives_a_raise(self):
+        run = ModelRun(provider="p", runtime="r", model="m")
+        with self.assertRaises(ValueError):
+            with run:
+                run.set(status="cancelled")
+                raise ValueError("stop")
+        self.assertEqual(run.record.status, "cancelled")
+
+    def test_exception_detail_is_still_captured(self):
+        # Keeping the declared status must not lose the diagnosis.
+        run = ModelRun(provider="p", runtime="r", model="m")
+        with self.assertRaises(RuntimeError):
+            with run:
+                run.set(status="rejected")
+                raise RuntimeError("price too high")
+        self.assertEqual(run.record.error_class, "RuntimeError")
+        self.assertEqual(run.record.error_message, "price too high")
+
+    def test_an_undeclared_failure_is_still_an_error(self):
+        # The default path must not change: an unhandled exception with no
+        # declared outcome is a failure.
+        run = ModelRun(provider="p", runtime="r", model="m")
+        with self.assertRaises(RuntimeError):
+            with run:
+                raise RuntimeError("boom")
+        self.assertEqual(run.record.status, "error")
+
+    def test_reject_reason_is_not_clobbered_by_the_exception(self):
+        run = ModelRun(provider="p", runtime="r", model="m")
+        with self.assertRaises(RuntimeError):
+            with run:
+                run.reject("monthly budget hit")
+                raise RuntimeError("different message")
+        self.assertEqual(run.record.error_message, "monthly budget hit")
+        self.assertEqual(run.record.error_class, "BudgetRejected")
